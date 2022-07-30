@@ -4,6 +4,15 @@ use deno_core::{
     anyhow::Error, error::generic_error, futures::FutureExt, resolve_import, ModuleLoader,
     ModuleSource, ModuleSourceFuture, ModuleSpecifier, ModuleType,
 };
+use swc_common::{sync::Lrc, FilePathMapping, Globals, Mark, SourceMap, GLOBALS};
+use swc_ecma_ast::EsVersion;
+use swc_ecma_codegen::{
+    text_writer::{JsWriter, WriteJs},
+    Emitter,
+};
+use swc_ecma_parser::{parse_file_as_module, Syntax, TsConfig};
+use swc_ecma_transforms_typescript::strip;
+use swc_ecma_visit::FoldWith;
 
 pub struct FuneeModuleLoader;
 
@@ -42,10 +51,12 @@ impl ModuleLoader for FuneeModuleLoader {
                 ModuleType::JavaScript
             };
 
-            let code = std::fs::read(path)?;
+            let buf = load_javascript_code(path);
+
+            println!("{}", String::from_utf8_lossy(&buf));
 
             let module = ModuleSource {
-                code: code.into_boxed_slice(),
+                code: buf.into_boxed_slice(),
                 module_type,
                 module_url_specified: module_specifier.to_string(),
                 module_url_found: module_specifier.to_string(),
@@ -54,4 +65,38 @@ impl ModuleLoader for FuneeModuleLoader {
         }
         .boxed_local()
     }
+}
+
+fn load_javascript_code(path: std::path::PathBuf) -> Vec<u8> {
+    let cm = Lrc::new(SourceMap::new(FilePathMapping::empty()));
+    let m = parse_file_as_module(
+        &cm.load_file(&path).unwrap(),
+        Syntax::Typescript(TsConfig {
+            decorators: true,
+            tsx: true,
+            ..Default::default()
+        }),
+        EsVersion::latest(),
+        None,
+        &mut vec![],
+    )
+    .expect("failed to parse input as a module");
+    let globals = Globals::default();
+    let module = GLOBALS.set(&globals, || m.fold_with(&mut strip(Mark::new())));
+    let mut buf = vec![];
+    {
+        let wr = Box::new(JsWriter::new(cm.clone(), "\n", &mut buf, None)) as Box<dyn WriteJs>;
+
+        let mut emitter = Emitter {
+            cfg: swc_ecma_codegen::Config {
+                ..Default::default()
+            },
+            cm,
+            comments: None,
+            wr,
+        };
+
+        emitter.emit_module(&module).unwrap();
+    }
+    buf
 }

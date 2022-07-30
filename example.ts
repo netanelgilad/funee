@@ -3,7 +3,7 @@ console.error("Boom!");
 
 declare var runjs: any;
 
-const path = "./log.txt";
+const path: string = "./log.txt";
 try {
   const contents = await runjs.readFile(path);
   console.log("Read from a file", contents);

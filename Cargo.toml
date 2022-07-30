@@ -7,4 +7,10 @@ edition = "2021"
 
 [dependencies]
 deno_core = "0.145.0"
+swc_common = "0.26.0"
+swc_ecma_ast = "0.89.0"
+swc_ecma_codegen = "0.120.1"
+swc_ecma_parser = "0.116.0"
+swc_ecma_transforms_typescript = "0.143.0"
+swc_ecma_visit = "0.75.0"
 tokio = { version = "1.20.1", features = ["full"] }
