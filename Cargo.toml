@@ -6,11 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+base64 = "0.13.0"
 deno_core = "0.145.0"
-swc_common = "0.26.0"
+petgraph = "0.6.2"
+swc_common = { version = "0.26.0", features = ["sourcemap"] }
 swc_ecma_ast = "0.89.0"
 swc_ecma_codegen = "0.120.1"
 swc_ecma_parser = "0.116.0"
+swc_ecma_transforms_base = "0.102.1"
 swc_ecma_transforms_typescript = "0.143.0"
 swc_ecma_visit = "0.75.0"
 tokio = { version = "1.20.1", features = ["full"] }

@@ -1,3 +1,6 @@
+function log() {
+  return Deno.core.opSync("op_log");
+}
 ((globalThis) => {
   const core = Deno.core;
 

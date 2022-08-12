@@ -1,21 +1,22 @@
-console.log("Hello", "runjs!");
-console.error("Boom!");
+import { log } from "funee";
+import { foo as bar, baz as faz } from "somewhere";
+import hopa from "sdsd";
 
-declare var runjs: any;
-
-const path: string = "./log.txt";
-try {
-  const contents = await runjs.readFile(path);
-  console.log("Read from a file", contents);
-} catch (err) {
-  console.error("Unable to read file", path, err);
+function doIt() {
+  bar();
+  hopa();
+  faz;
 }
 
-await runjs.writeFile(path, "I can write to a file.");
-const contents = await runjs.readFile(path);
-console.log("Read from a file", path, "contents:", contents);
-console.log("Removing file", path);
-runjs.removeFile(path);
-console.log("File removed");
+export function another() {
+  another();
+}
 
-export {};
+export default function () {
+  another();
+  const c = 1;
+  log("hello world");
+  [].map((x) => {
+    log(x);
+  });
+}

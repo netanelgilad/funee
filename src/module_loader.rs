@@ -1,18 +1,16 @@
-use std::pin::Pin;
+use std::{pin::Pin, rc::Rc};
 
+use crate::load_module::load_module;
 use deno_core::{
     anyhow::Error, error::generic_error, futures::FutureExt, resolve_import, ModuleLoader,
     ModuleSource, ModuleSourceFuture, ModuleSpecifier, ModuleType,
 };
-use swc_common::{sync::Lrc, FilePathMapping, Globals, Mark, SourceMap, GLOBALS};
-use swc_ecma_ast::EsVersion;
+use swc_common::{BytePos, LineCol, SourceMap};
+use swc_ecma_ast::*;
 use swc_ecma_codegen::{
     text_writer::{JsWriter, WriteJs},
     Emitter,
 };
-use swc_ecma_parser::{parse_file_as_module, Syntax, TsConfig};
-use swc_ecma_transforms_typescript::strip;
-use swc_ecma_visit::FoldWith;
 
 pub struct FuneeModuleLoader;
 
@@ -53,8 +51,6 @@ impl ModuleLoader for FuneeModuleLoader {
 
             let buf = load_javascript_code(path);
 
-            println!("{}", String::from_utf8_lossy(&buf));
-
             let module = ModuleSource {
                 code: buf.into_boxed_slice(),
                 module_type,
@@ -68,35 +64,41 @@ impl ModuleLoader for FuneeModuleLoader {
 }
 
 fn load_javascript_code(path: std::path::PathBuf) -> Vec<u8> {
-    let cm = Lrc::new(SourceMap::new(FilePathMapping::empty()));
-    let m = parse_file_as_module(
-        &cm.load_file(&path).unwrap(),
-        Syntax::Typescript(TsConfig {
-            decorators: true,
-            tsx: true,
-            ..Default::default()
-        }),
-        EsVersion::latest(),
-        None,
-        &mut vec![],
-    )
-    .expect("failed to parse input as a module");
-    let globals = Globals::default();
-    let module = GLOBALS.set(&globals, || m.fold_with(&mut strip(Mark::new())));
+    let (cm, module) = load_module(path);
+    emit_module(cm, module)
+}
+
+pub fn emit_module(cm: Rc<SourceMap>, module: Module) -> Vec<u8> {
     let mut buf = vec![];
+    let mut srcmap = vec![];
     {
-        let wr = Box::new(JsWriter::new(cm.clone(), "\n", &mut buf, None)) as Box<dyn WriteJs>;
+        let wr = Box::new(JsWriter::new(cm.clone(), "\n", &mut buf, Some(&mut srcmap)))
+            as Box<dyn WriteJs>;
 
         let mut emitter = Emitter {
             cfg: swc_ecma_codegen::Config {
                 ..Default::default()
             },
-            cm,
+            cm: cm.clone(),
             comments: None,
             wr,
         };
 
         emitter.emit_module(&module).unwrap();
+    }
+
+    buf
+}
+
+fn _get_inline_source_map(cm: Rc<SourceMap>, srcmap: &mut Vec<(BytePos, LineCol)>) -> Vec<u8> {
+    let srcmap = cm.build_source_map(srcmap);
+
+    let mut output: Vec<u8> = vec![];
+    srcmap.to_writer(&mut output).unwrap();
+
+    let mut buf = vec![];
+    for value in "\n//# sourceMappingURL=data:application/json;base64,".bytes() {
+        buf.push(value);
     }
     buf
 }

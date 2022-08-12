@@ -1,10 +1,19 @@
+mod execute_expression_in_scope;
+mod funee_identifier;
+mod load_module;
 mod module_loader;
 
 use deno_core::error::AnyError;
 use deno_core::op;
 use deno_core::Extension;
+
+use execute_expression_in_scope::execute_expression_in_scope;
+
 use module_loader::FuneeModuleLoader;
+use std::collections::HashMap;
 use std::rc::Rc;
+use swc_ecma_ast::Expr;
+use swc_ecma_ast::Ident;
 
 #[op]
 async fn op_read_file(path: String) -> Result<String, AnyError> {
@@ -52,6 +61,11 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
 }
 
 fn main() -> Result<(), AnyError> {
+    execute_expression_in_scope(
+        Expr::Ident(Ident::new("stam".into(), Default::default())),
+        "/Users/netanelg/Development/funee/example.ts".to_string(),
+        HashMap::new(),
+    );
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
@@ -59,5 +73,6 @@ fn main() -> Result<(), AnyError> {
     if let Err(error) = runtime.block_on(run_js("./example.ts")) {
         eprintln!("error: {}", error);
     }
+
     Ok(())
 }
