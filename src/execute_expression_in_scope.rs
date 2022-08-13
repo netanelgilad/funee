@@ -15,9 +15,13 @@ mod load_module_declaration;
 pub fn execute_expression_in_scope(
     expression: Expr,
     scope: String,
-    _: HashMap<FuneeIdentifier, OpDecl>,
+    host_functions: HashMap<FuneeIdentifier, OpDecl>,
 ) {
-    let execution_graph = load_execution_graph::load_execution_graph(scope, expression);
+    let execution_graph = load_execution_graph::load_execution_graph(
+        scope,
+        expression,
+        host_functions.keys().cloned().collect(),
+    );
 
     println!("{:#?}", execution_graph);
 }
@@ -41,8 +45,17 @@ fn _emit_statements_as_module(
 mod tests {
     use std::collections::HashMap;
 
-    use crate::execute_expression_in_scope::execute_expression_in_scope;
+    use crate::{
+        execute_expression_in_scope::execute_expression_in_scope, funee_identifier::FuneeIdentifier,
+    };
+    use deno_core::{error::AnyError, op};
     use swc_ecma_ast as ast;
+
+    #[op]
+    async fn op_log(something: String) -> Result<(), AnyError> {
+        println!("{:#?}", something);
+        Ok(())
+    }
 
     #[test]
     fn it_works() {
@@ -50,7 +63,13 @@ mod tests {
             execute_expression_in_scope(
                 ast::Expr::Ident(ast::Ident::new("default".into(), Default::default())),
                 "/Users/netanelg/Development/funee/example.ts".to_string(),
-                HashMap::new()
+                HashMap::from([(
+                    FuneeIdentifier {
+                        name: "log".to_string(),
+                        uri: "funee".to_string()
+                    },
+                    op_log::decl()
+                )])
             ),
             ()
         );

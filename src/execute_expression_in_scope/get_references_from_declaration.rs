@@ -14,7 +14,7 @@ pub fn get_references_from_declaration(decl: &mut Declaration) -> HashSet<String
         Declaration::FnExpr(n) => get_references_from_ast(n),
         Declaration::Expr(n) => get_references_from_ast(n),
         Declaration::FuneeIdentifier(_) => HashSet::new(),
-        Declaration::HostFn { name: _, uri: _ } => HashSet::new(),
+        Declaration::HostFn(_) => HashSet::new(),
     }
 }
 

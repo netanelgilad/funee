@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use petgraph::{
     visit::{Dfs, VisitMap},
@@ -16,6 +16,7 @@ use super::{
 pub fn load_execution_graph(
     scope: String,
     expression: Expr,
+    host_functions: HashSet<FuneeIdentifier>,
 ) -> Graph<(String, Declaration), String> {
     let mut definitions_index = HashMap::new();
     let mut execution_graph = Graph::new();
@@ -42,11 +43,8 @@ pub fn load_execution_graph(
         };
 
         for reference in references {
-            let declaration = if reference.1.name == "log" && reference.1.uri == "funee" {
-                Declaration::HostFn {
-                    name: "log".to_string(),
-                    uri: "funee".to_string(),
-                }
+            let declaration = if host_functions.contains(&reference.1) {
+                Declaration::HostFn(reference.1.clone())
             } else {
                 let mut current_identifier = reference.1.clone();
                 loop {
@@ -60,11 +58,8 @@ pub fn load_execution_graph(
                         .declaration;
 
                     if let Declaration::FuneeIdentifier(i) = declaration {
-                        if i.name == "log" && i.uri == "funee" {
-                            break Declaration::HostFn {
-                                name: "log".to_string(),
-                                uri: "funee".to_string(),
-                            };
+                        if host_functions.contains(&i) {
+                            break Declaration::HostFn(i);
                         }
                         current_identifier = i;
                     } else {

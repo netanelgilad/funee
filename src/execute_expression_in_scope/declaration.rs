@@ -8,5 +8,5 @@ pub enum Declaration {
     FnExpr(FnExpr),
     FnDecl(FnDecl),
     FuneeIdentifier(FuneeIdentifier),
-    HostFn { name: String, uri: String },
+    HostFn(FuneeIdentifier),
 }
