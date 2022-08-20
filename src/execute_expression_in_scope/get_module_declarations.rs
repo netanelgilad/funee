@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-
+use super::declaration::Declaration;
+use crate::funee_identifier::FuneeIdentifier;
+use std::{collections::HashMap, path::Path};
 use swc_ecma_ast::{
     Decl, DefaultDecl, ExportSpecifier, ImportSpecifier, Module, ModuleDecl, ModuleExportName,
     ModuleItem, Stmt,
 };
-
-use crate::funee_identifier::FuneeIdentifier;
-
-use super::declaration::Declaration;
 
 pub fn get_module_declarations(module: Module) -> HashMap<String, ModuleDeclaration> {
     HashMap::from_iter(
@@ -92,7 +89,7 @@ fn get_module_declarations_from_module_item(
                                 Some(ref imported) => get_name_from_module_export_name(imported),
                                 None => n.local.sym.to_string(),
                             },
-                            uri: decl.src.value.to_string(),
+                            uri: get_import_decl_uri(&current_uri, &decl),
                         }),
                     },
                 )),
@@ -102,7 +99,7 @@ fn get_module_declarations_from_module_item(
                         exported: false,
                         declaration: Declaration::FuneeIdentifier(FuneeIdentifier {
                             name: "default".to_string(),
-                            uri: decl.src.value.to_string(),
+                            uri: get_import_decl_uri(&current_uri, &decl),
                         }),
                     },
                 )),
@@ -119,4 +116,12 @@ fn get_module_declarations_from_module_item(
         )],
         _ => vec![],
     }
+}
+
+fn get_import_decl_uri(current_uri: &String, decl: &swc_ecma_ast::ImportDecl) -> String {
+    Path::new(current_uri)
+        .join(Path::new(&decl.src.value.to_string().clone()))
+        .to_str()
+        .unwrap()
+        .to_string()
 }

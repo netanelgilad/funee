@@ -1,13 +1,13 @@
-use swc_common::{sync::Lrc, FilePathMapping, Globals, Mark, SourceMap, GLOBALS};
+use std::rc::Rc;
+use swc_common::{Globals, Mark, SourceMap, GLOBALS};
 use swc_ecma_ast::EsVersion;
 use swc_ecma_parser::{parse_file_as_module, Syntax::Typescript, TsConfig};
 use swc_ecma_transforms_typescript::strip;
 use swc_ecma_visit::FoldWith;
 
-pub fn load_module(path: std::path::PathBuf) -> (Lrc<SourceMap>, swc_ecma_ast::Module) {
-    let cm = Lrc::new(SourceMap::new(FilePathMapping::empty()));
+pub fn load_module(cm: &Rc<SourceMap>, path: std::path::PathBuf) -> swc_ecma_ast::Module {
     let m = parse_file_as_module(
-        &cm.load_file(&path).unwrap(),
+        &*cm.load_file(&path).unwrap(),
         Typescript(TsConfig {
             ..Default::default()
         }),
@@ -19,5 +19,5 @@ pub fn load_module(path: std::path::PathBuf) -> (Lrc<SourceMap>, swc_ecma_ast::M
 
     let globals = Globals::default();
     let module = GLOBALS.set(&globals, || m.fold_with(&mut strip(Mark::new())));
-    (cm, module)
+    module
 }
