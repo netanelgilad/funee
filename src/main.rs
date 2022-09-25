@@ -1,5 +1,5 @@
 mod emit_module;
-pub mod execute_expression_in_scope;
+pub mod execution_request;
 mod funee_identifier;
 mod load_module;
 mod run_js;

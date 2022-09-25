@@ -1,4 +1,4 @@
-use crate::{execute_expression_in_scope::ExecutionRequest, funee_identifier::FuneeIdentifier};
+use crate::{execution_request::ExecutionRequest, funee_identifier::FuneeIdentifier};
 use ast::{CallExpr, Callee};
 use deno_core::{error::AnyError, op};
 use std::collections::HashMap;
