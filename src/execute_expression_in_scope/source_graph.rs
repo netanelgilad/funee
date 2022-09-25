@@ -8,11 +8,13 @@ use petgraph::{
     visit::{Dfs, VisitMap},
     Graph,
 };
+use relative_path::RelativePath;
 use std::{
     collections::{HashMap, HashSet},
+    path::Path,
     rc::Rc,
 };
-use swc_common::{FilePathMapping, Globals, Mark, SourceMap, GLOBALS};
+use swc_common::{FileLoader, FilePathMapping, Globals, Mark, SourceMap, GLOBALS};
 use swc_ecma_ast::Expr;
 
 pub struct ReferencesMark {
@@ -27,14 +29,24 @@ pub struct SourceGraph {
     pub references_mark: ReferencesMark,
 }
 
+pub struct LoadParams {
+    pub scope: String,
+    pub expression: Expr,
+    pub host_functions: HashSet<FuneeIdentifier>,
+    pub file_loader: Box<dyn FileLoader + Sync + Send>,
+}
+
 impl SourceGraph {
-    pub fn load(scope: String, expression: Expr, host_functions: HashSet<FuneeIdentifier>) -> Self {
+    pub fn load(params: LoadParams) -> Self {
         let globals = Globals::default();
-        let cm = Rc::new(SourceMap::new(FilePathMapping::empty()));
+        let cm = Rc::new(SourceMap::with_file_loader(
+            params.file_loader,
+            FilePathMapping::empty(),
+        ));
         let unresolved_mark = GLOBALS.set(&globals, || Mark::new());
         let mut definitions_index = HashMap::new();
         let mut graph = Graph::new();
-        let root_node = graph.add_node((scope, Declaration::Expr(expression)));
+        let root_node = graph.add_node((params.scope, Declaration::Expr(params.expression)));
         let mut dfs = Dfs::new(&graph, root_node);
         while let Some(nx) = dfs.next(&graph) {
             let (t, declaration) = &mut graph[nx];
@@ -57,8 +69,15 @@ impl SourceGraph {
             };
 
             for reference in references {
-                let declaration = if host_functions.contains(&reference.1) {
-                    Declaration::HostFn(host_functions.get(&reference.1).unwrap().name.clone())
+                let declaration = if params.host_functions.contains(&reference.1) {
+                    Declaration::HostFn(
+                        params
+                            .host_functions
+                            .get(&reference.1)
+                            .unwrap()
+                            .name
+                            .clone(),
+                    )
                 } else {
                     let mut current_identifier = reference.1.clone();
                     loop {
@@ -72,12 +91,25 @@ impl SourceGraph {
                             .declaration;
 
                         if let Declaration::FuneeIdentifier(i) = declaration {
-                            if host_functions.contains(&i) {
+                            if params.host_functions.contains(&i) {
                                 break Declaration::HostFn(
-                                    host_functions.get(&i).unwrap().name.clone(),
+                                    params.host_functions.get(&i).unwrap().name.clone(),
                                 );
                             }
-                            current_identifier = i;
+                            let relative_path = RelativePath::new(&i.uri);
+                            let current_dir = Path::new(&current_identifier.uri)
+                                .parent()
+                                .unwrap()
+                                .to_str()
+                                .unwrap();
+                            current_identifier = FuneeIdentifier {
+                                name: i.name,
+                                uri: relative_path
+                                    .to_logical_path(&current_dir)
+                                    .to_str()
+                                    .unwrap()
+                                    .to_string(),
+                            };
                         } else {
                             break declaration;
                         }
