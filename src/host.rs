@@ -21,7 +21,6 @@ pub fn build_runtime(host: &mut (dyn Host)) -> deno_core::JsRuntime {
     deno_core::JsRuntime::new(deno_core::RuntimeOptions {
         extensions: vec![Extension::builder()
             .ops(vec![op_log::decl()])
-            .js(js_files)
             .state(move |state| {
                 state.resource_table.add(resource);
                 Ok(())
