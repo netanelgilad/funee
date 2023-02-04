@@ -1,12 +1,11 @@
-use deno_core::{error::AnyError, Extension, OpDecl};
+use deno_core::error::AnyError;
 
-pub async fn run_js(js: &str, ops: Vec<OpDecl>) -> Result<(), AnyError> {
-    let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-        extensions: vec![Extension::builder().ops(ops).build()],
-        ..Default::default()
-    });
+use crate::host::{build_runtime, Host};
 
-    js_runtime.execute_script("[funee:runtime.js]", js)?;
+pub async fn run_js(js: &str, host: &'static mut dyn Host) -> Result<(), AnyError> {
+    let mut js_runtime = build_runtime(host);
+
+    js_runtime.execute_script("[runtime.js]", js)?;
     js_runtime.run_event_loop(false).await?;
 
     Ok(())

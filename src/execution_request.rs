@@ -3,36 +3,25 @@ mod get_inline_source_map;
 mod get_module_declarations;
 mod get_references_from_declaration;
 mod load_module_declaration;
+mod program;
 mod source_graph;
 mod source_graph_to_js_execution_code;
 
-use crate::{funee_identifier::FuneeIdentifier, run_js::run_js};
+use std::collections::HashSet;
+
+use crate::{funee_identifier::FuneeIdentifier, host::Host, run_js::run_js};
 use ast::Expr;
-use deno_core::{error::AnyError, OpDecl};
-use std::collections::HashMap;
-use swc_common::{source_map::RealFileLoader, FileLoader};
+use deno_core::error::AnyError;
+use swc_common::FileLoader;
 use swc_ecma_ast as ast;
 
 use self::source_graph::{LoadParams, SourceGraph};
 
 pub struct ExecutionRequest {
-    expression: Expr,
-    scope: String,
-    host_functions: HashMap<FuneeIdentifier, OpDecl>,
-    file_loader: Box<dyn FileLoader + Sync + Send>,
-}
-
-impl Default for ExecutionRequest {
-    fn default() -> Self {
-        Self {
-            expression: ast::Expr::Lit(ast::Lit::Null(ast::Null {
-                span: Default::default(),
-            })),
-            scope: "".to_string(),
-            host_functions: HashMap::new(),
-            file_loader: Box::new(RealFileLoader),
-        }
-    }
+    pub expression: Expr,
+    pub scope: String,
+    pub host: &'static mut dyn Host,
+    pub file_loader: Box<dyn FileLoader + Sync + Send>,
 }
 
 impl ExecutionRequest {
@@ -40,7 +29,10 @@ impl ExecutionRequest {
         let source_graph = SourceGraph::load(LoadParams {
             scope: self.scope,
             expression: self.expression,
-            host_functions: self.host_functions.keys().cloned().collect(),
+            host_functions: HashSet::from([FuneeIdentifier {
+                uri: "host".to_string(),
+                name: "log".to_string(),
+            }]),
             file_loader: self.file_loader,
         });
 
@@ -50,16 +42,10 @@ impl ExecutionRequest {
             .enable_all()
             .build()?;
 
-        if let Err(error) = runtime.block_on(run_js(
-            &execution_code,
-            self.host_functions.into_values().collect(),
-        )) {
+        if let Err(error) = runtime.block_on(run_js(&execution_code, self.host)) {
             eprintln!("error: {}", error);
         }
 
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests;

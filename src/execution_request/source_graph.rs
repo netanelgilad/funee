@@ -11,7 +11,7 @@ use petgraph::{
 use relative_path::RelativePath;
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
     rc::Rc,
 };
 use swc_common::{FileLoader, FilePathMapping, Globals, Mark, SourceMap, GLOBALS};
@@ -96,20 +96,7 @@ impl SourceGraph {
                                     params.host_functions.get(&i).unwrap().name.clone(),
                                 );
                             }
-                            let relative_path = RelativePath::new(&i.uri);
-                            let current_dir = Path::new(&current_identifier.uri)
-                                .parent()
-                                .unwrap()
-                                .to_str()
-                                .unwrap();
-                            current_identifier = FuneeIdentifier {
-                                name: i.name,
-                                uri: relative_path
-                                    .to_logical_path(&current_dir)
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string(),
-                            };
+                            current_identifier = resolve_relative_import(i, &current_identifier);
                         } else {
                             break declaration;
                         }
@@ -141,5 +128,33 @@ impl SourceGraph {
             },
             root: root_node,
         }
+    }
+}
+
+fn resolve_relative_import(
+    i: FuneeIdentifier,
+    current_identifier: &FuneeIdentifier,
+) -> FuneeIdentifier {
+    let relative_path = RelativePath::new(&i.uri);
+    let current_dir = Path::new(&current_identifier.uri)
+        .parent()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    FuneeIdentifier {
+        name: i.name,
+        uri: if current_dir == "/" {
+            PathBuf::from("/")
+                .join(relative_path.to_logical_path(""))
+                .to_str()
+                .unwrap()
+                .to_string()
+        } else {
+            relative_path
+                .to_logical_path(&current_dir)
+                .to_str()
+                .unwrap()
+                .to_string()
+        },
     }
 }
