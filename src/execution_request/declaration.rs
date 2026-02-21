@@ -83,7 +83,7 @@ impl Declaration {
                                 callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
                                     span: Default::default(),
                                     prop: swc_ecma_ast::MemberProp::Ident(Ident::new(
-                                        "opSync".into(),
+                                        "opAsync".into(),
                                         Default::default(),
                                     )),
                                     obj: Box::new(Expr::Member(MemberExpr {
@@ -102,7 +102,7 @@ impl Declaration {
                         })],
                     }),
                     is_generator: false,
-                    is_async: false,
+                    is_async: true,
                     type_params: None,
                     return_type: None,
                 },
