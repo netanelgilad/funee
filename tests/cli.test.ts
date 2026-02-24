@@ -194,19 +194,25 @@ describe('funee CLI', () => {
     it('reports missing import errors', async () => {
       /**
        * When an import cannot be resolved, funee should
-       * give a clear error message
+       * exit with non-zero and report the missing declaration
        */
-      // TODO: Create fixture with bad import
-      expect(true).toBe(true);
+      const { stdout, stderr, exitCode } = await runFunee(['errors/missing-import.ts']);
+      
+      expect(exitCode).not.toBe(0);
+      // Should mention what couldn't be found
+      expect(stderr).toContain('doesNotExist');
     });
 
-    it('reports parse errors with location', async () => {
+    it('reports parse errors', async () => {
       /**
        * When TypeScript has syntax errors, funee should
-       * report them with file, line, and column information
+       * exit with non-zero and report the error
        */
-      // TODO: Create fixture with syntax error
-      expect(true).toBe(true);
+      const { stdout, stderr, exitCode } = await runFunee(['errors/syntax-error.ts']);
+      
+      expect(exitCode).not.toBe(0);
+      // Should indicate a parse/syntax error occurred
+      expect(stderr).toMatch(/parse|error|expected/i);
     });
   });
 });
