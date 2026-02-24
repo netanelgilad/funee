@@ -60,13 +60,6 @@ fn get_module_declarations_from_module_item(
                     declaration: Declaration::FnDecl(fn_decl),
                 },
             )],
-            Decl::Class(class_decl) => vec![(
-                atom_to_string(&class_decl.ident.sym),
-                ModuleDeclaration {
-                    exported: true,
-                    declaration: Declaration::ClassDecl(class_decl),
-                },
-            )],
             Decl::Var(var_decl) => var_decl
                 .decls
                 .into_iter()

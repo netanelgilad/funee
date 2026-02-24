@@ -302,31 +302,6 @@ describe('funee CLI', () => {
     });
   });
 
-  describe('class declarations', () => {
-    it('supports exported class declarations', async () => {
-      /**
-       * Tests that export class MyClass { ... } works
-       */
-      const { stdout, exitCode } = await runFunee(['class.ts']);
-      
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain('Counter value: 2');
-    });
-
-    it('tree-shakes unused classes', async () => {
-      /**
-       * counter.ts exports Counter and UnusedClass
-       * Only Counter is used, UnusedClass should be tree-shaken
-       */
-      const { stdout, exitCode } = await runFuneeEmit(['class.ts']);
-      
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain('class declaration_');  // Counter is included
-      expect(stdout).not.toContain('UnusedClass');
-      expect(stdout).not.toContain('doNothing');
-    });
-  });
-
   describe('error handling', () => {
     it('reports missing import errors', async () => {
       /**
