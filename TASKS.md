@@ -1,18 +1,18 @@
 # Funee Tasks
 
+## Architecture Decision
+**Functional-only ecosystem** - No class support. Functions + closures cover all use cases for the macro system.
+
 ## In Progress
 (none)
 
 ## Queued
 - [ ] Timer globals (setTimeout, setInterval) - requires deno timer ops
-- [ ] Namespace imports (`import * as utils from "./utils.ts"`)
-- [ ] Class constructor parameters (currently fails)
-- [ ] Class inheritance/extends
 - [ ] Improve error messages (file/line/column)
+- [ ] Namespace imports (`import * as utils from "./utils.ts"`)
 
 ## Done
 - [x] Import aliasing (`import { foo as bar }`)
-- [x] Class declarations support
 - [x] Global support (Promise, Object, Array, JSON, Math, etc.)
 - [x] Async function support
 - [x] Multiple host functions (`import { log, debug } from "funee"`)
@@ -28,7 +28,6 @@
 - [x] Fix source_graph resolved URI bug
 
 ## Notes
-- Declaration-level bundling is the core differentiator
-- **20 E2E tests passing**
-- Timer globals need deno timer ops - separate task
-- Class constructor parameters need work on resolver
+- **18 E2E tests passing**
+- Timer globals need deno timer ops
+- Functional-only = simpler bundler, cleaner macro transforms
