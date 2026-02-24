@@ -134,7 +134,13 @@ fn get_module_declarations_from_module_item(
                 ImportSpecifier::Namespace(_) => None,
             })
             .collect(),
-        ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(_)) => vec![],
+        ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(expr)) => vec![(
+            "default".to_string(),
+            ModuleDeclaration {
+                exported: true,
+                declaration: Declaration::VarInit(*expr.expr),
+            },
+        )],
         ModuleItem::Stmt(Stmt::Decl(Decl::Fn(func))) => vec![(
             atom_to_string(&func.ident.sym),
             ModuleDeclaration {

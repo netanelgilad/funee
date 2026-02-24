@@ -68,6 +68,17 @@ describe('funee CLI', () => {
       expect(exitCode).toBe(0);
       expect(stdout).toContain('hello from funee');
     });
+
+    it('runs default export expressions', async () => {
+      /**
+       * Tests: export default () => { ... }
+       * (as opposed to export default function() { ... })
+       */
+      const { stdout, exitCode } = await runFunee(['default-expr.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('default export expression works');
+    });
   });
 
   describe('re-exports', () => {

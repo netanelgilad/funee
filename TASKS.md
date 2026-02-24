@@ -1,17 +1,18 @@
 # Funee Tasks
 
 ## In Progress
-- [ ] Aliased re-export test (use `{ helper as aliased }`)
-
-## Queued
-- [ ] Error handling: missing import errors with clear messages
-- [ ] Error handling: parse errors with file/line/column
-- [ ] Multiple host functions test (`import { log, fetch, readFile } from "funee"`)
-- [ ] Class declarations support
-- [ ] Async function support verification
 - [ ] Default export expressions (`export default () => {}`)
 
+## Queued
+- [ ] Multiple host functions (`import { log, fetch, readFile } from "funee"`)
+- [ ] Class declarations support
+- [ ] Async function support verification
+- [ ] Improve error messages (file/line/column instead of panics)
+- [ ] Non-exported declarations (private functions used internally)
+
 ## Done
+- [x] Error handling tests (missing imports, parse errors)
+- [x] Aliased re-exports (`export { foo as bar }`)
 - [x] Variable declarations / arrow functions (`export const add = () => ...`)
 - [x] Re-exports through barrel files
 - [x] Deep import chains (A → B → C → D)
