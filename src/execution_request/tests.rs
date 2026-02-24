@@ -89,3 +89,62 @@ fn it_works() {
     };
     assert_eq!(request.execute().unwrap(), ());
 }
+
+#[test]
+fn test_macro_detection() {
+    use crate::execution_request::get_module_declarations::get_module_declarations;
+    use crate::load_module::load_module;
+    use std::path::PathBuf;
+    use std::rc::Rc;
+    use swc_common::{FilePathMapping, SourceMap};
+
+    // Create a mock file loader with the macro-lib.ts content
+    let file_loader = Box::new(MockFileLoader {
+        files: HashMap::from([(
+            "/test/macro-lib.ts".to_string(),
+            r#"
+export function createMacro<T, R>(fn: (closure: T) => R): (value: T) => R {
+    throw new Error("Macro not expanded");
+}
+
+export const closure = createMacro(<T>(input: T) => {
+    return input;
+});
+            "#
+            .to_string(),
+        )]),
+    });
+
+    let cm = Rc::new(SourceMap::with_file_loader(
+        file_loader,
+        FilePathMapping::empty(),
+    ));
+
+    // Load the module and get declarations
+    let module = load_module(&cm, PathBuf::from("/test/macro-lib.ts"));
+    let declarations = get_module_declarations(module);
+
+    // Verify that 'closure' is detected as a Macro
+    let closure_decl = declarations.get("closure").expect("closure declaration should exist");
+    
+    match &closure_decl.declaration {
+        crate::execution_request::declaration::Declaration::Macro(_) => {
+            println!("✅ Successfully detected 'closure' as a Macro!");
+        }
+        other => {
+            panic!("Expected closure to be a Macro, but got: {:?}", other);
+        }
+    }
+
+    // Verify that 'createMacro' is NOT a Macro (it's just a regular function)
+    let create_macro_decl = declarations.get("createMacro").expect("createMacro declaration should exist");
+    
+    match &create_macro_decl.declaration {
+        crate::execution_request::declaration::Declaration::Macro(_) => {
+            panic!("createMacro should NOT be detected as a Macro");
+        }
+        _ => {
+            println!("✅ createMacro correctly identified as regular function");
+        }
+    }
+}

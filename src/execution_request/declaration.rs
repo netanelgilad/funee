@@ -13,6 +13,8 @@ pub enum Declaration {
     FnDecl(FnDecl),
     /// Variable declaration with initializer (e.g., `const add = () => ...`)
     VarInit(Expr),
+    /// Macro created via createMacro() - contains the macro function
+    Macro(Expr),
     FuneeIdentifier(FuneeIdentifier),
     HostFn(String),
 }
@@ -55,6 +57,22 @@ impl Declaration {
                         span: Default::default(),
                         name: Pat::Ident(ident(&name).into()),
                         init: Some(Box::new(init_expr)),
+                        definite: false,
+                    }],
+                })))
+            }
+            Declaration::Macro(macro_fn) => {
+                // For now, emit the macro function as a regular variable
+                // Later: this will be handled specially to capture AST at call sites
+                Stmt::Decl(Decl::Var(Box::new(VarDecl {
+                    span: Default::default(),
+                    ctxt: SyntaxContext::empty(),
+                    kind: VarDeclKind::Var,
+                    declare: false,
+                    decls: vec![VarDeclarator {
+                        span: Default::default(),
+                        name: Pat::Ident(ident(&name).into()),
+                        init: Some(Box::new(macro_fn)),
                         definite: false,
                     }],
                 })))

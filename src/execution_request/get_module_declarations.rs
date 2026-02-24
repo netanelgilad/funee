@@ -2,8 +2,8 @@ use super::declaration::Declaration;
 use crate::funee_identifier::FuneeIdentifier;
 use std::{collections::HashMap, path::Path};
 use swc_ecma_ast::{
-    Decl, DefaultDecl, ExportSpecifier, ImportSpecifier, Module, ModuleDecl, ModuleExportName,
-    ModuleItem, Pat, Stmt,
+    Callee, Decl, DefaultDecl, ExportSpecifier, Expr, ImportSpecifier, Module, ModuleDecl,
+    ModuleExportName, ModuleItem, Pat, Stmt,
 };
 
 pub fn get_module_declarations(module: Module) -> HashMap<String, ModuleDeclaration> {
@@ -23,6 +23,26 @@ pub struct ModuleDeclaration {
 fn atom_to_string(atom: &swc_atoms::Atom) -> String {
     // Atom derefs to str for valid UTF-8
     (&**atom).to_string()
+}
+
+/// Check if an expression is a call to createMacro() and extract the macro function
+/// Pattern: createMacro((input: Closure<T>) => { ... })
+/// Returns: Some(macro_function_expr) if it's a createMacro call, None otherwise
+fn extract_macro_function(expr: &Expr) -> Option<Expr> {
+    if let Expr::Call(call_expr) = expr {
+        // Check if the callee is an identifier named "createMacro"
+        if let Callee::Expr(callee_expr) = &call_expr.callee {
+            if let Expr::Ident(ident) = &**callee_expr {
+                if atom_to_string(&ident.sym) == "createMacro" {
+                    // Extract the first argument (the macro function)
+                    if let Some(first_arg) = call_expr.args.first() {
+                        return Some((*first_arg.expr).clone());
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn wtf8_to_string(atom: &swc_atoms::Wtf8Atom) -> String {
@@ -66,11 +86,18 @@ fn get_module_declarations_from_module_item(
                 .filter_map(|declarator| {
                     // Only handle simple identifier patterns with initializers
                     if let (Pat::Ident(ident), Some(init)) = (declarator.name, declarator.init) {
+                        // Check if this is a macro created via createMacro()
+                        let declaration = if let Some(macro_fn) = extract_macro_function(&init) {
+                            Declaration::Macro(macro_fn)
+                        } else {
+                            Declaration::VarInit(*init)
+                        };
+                        
                         Some((
                             atom_to_string(&ident.sym),
                             ModuleDeclaration {
                                 exported: true,
-                                declaration: Declaration::VarInit(*init),
+                                declaration,
                             },
                         ))
                     } else {
@@ -148,6 +175,32 @@ fn get_module_declarations_from_module_item(
                 declaration: Declaration::FnDecl(func),
             },
         )],
+        // Handle non-exported variable declarations (e.g., const addClosure = closure(add))
+        ModuleItem::Stmt(Stmt::Decl(Decl::Var(var_decl))) => var_decl
+            .decls
+            .into_iter()
+            .filter_map(|declarator| {
+                // Only handle simple identifier patterns with initializers
+                if let (Pat::Ident(ident), Some(init)) = (declarator.name, declarator.init) {
+                    // Check if this is a macro created via createMacro()
+                    let declaration = if let Some(macro_fn) = extract_macro_function(&init) {
+                        Declaration::Macro(macro_fn)
+                    } else {
+                        Declaration::VarInit(*init)
+                    };
+                    
+                    Some((
+                        atom_to_string(&ident.sym),
+                        ModuleDeclaration {
+                            exported: false,
+                            declaration,
+                        },
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect(),
         _ => vec![],
     }
 }
