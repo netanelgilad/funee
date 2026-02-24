@@ -251,6 +251,39 @@ describe('funee CLI', () => {
     });
   });
 
+  describe('globals', () => {
+    it('supports JavaScript built-in globals', async () => {
+      /**
+       * Tests that JavaScript globals (Promise, Object, Array, JSON, Math)
+       * are available and not mistakenly treated as imports to resolve.
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['globals.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('Promise.resolve: 42');
+      expect(stdout).toContain('Promise.all: a,b,c');
+      expect(stdout).toContain('Array.map: 2,4,6');
+      expect(stdout).toContain('Object.keys: a,b');
+      expect(stdout).toContain('JSON.stringify: {"test":true}');
+      expect(stdout).toContain('Math.max: 5');
+      expect(stdout).toContain('globals test complete');
+    });
+
+    it('tree-shakes but preserves global references in emitted code', async () => {
+      /**
+       * Verify that global references remain in emitted code
+       * and aren't removed by tree-shaking
+       */
+      const { stdout, exitCode } = await runFuneeEmit(['globals.ts']);
+      
+      expect(exitCode).toBe(0);
+      // Globals should be referenced directly, not as imports
+      expect(stdout).toContain('Promise');
+      expect(stdout).toContain('Object');
+      expect(stdout).toContain('JSON');
+    });
+  });
+
   describe('error handling', () => {
     it('reports missing import errors', async () => {
       /**

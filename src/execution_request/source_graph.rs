@@ -17,6 +17,46 @@ use std::{
 use swc_common::{FileLoader, FilePathMapping, Globals, Mark, SourceMap, GLOBALS};
 use swc_ecma_ast::Expr;
 
+/// JavaScript globals provided by the runtime - skip during bundling
+fn is_js_global(name: &str) -> bool {
+    matches!(
+        name,
+        // Core globals
+        "globalThis" | "undefined" | "NaN" | "Infinity"
+        // Constructors / built-in objects
+        | "Object" | "Function" | "Boolean" | "Symbol"
+        | "Number" | "BigInt" | "Math" | "Date"
+        | "String" | "RegExp"
+        | "Array" | "Int8Array" | "Uint8Array" | "Uint8ClampedArray"
+        | "Int16Array" | "Uint16Array" | "Int32Array" | "Uint32Array"
+        | "Float32Array" | "Float64Array" | "BigInt64Array" | "BigUint64Array"
+        | "Map" | "Set" | "WeakMap" | "WeakSet" | "WeakRef" | "FinalizationRegistry"
+        | "ArrayBuffer" | "SharedArrayBuffer" | "DataView"
+        | "Promise" | "Proxy" | "Reflect"
+        | "Error" | "AggregateError" | "EvalError" | "RangeError"
+        | "ReferenceError" | "SyntaxError" | "TypeError" | "URIError"
+        | "JSON" | "Intl" | "Atomics"
+        // Functions
+        | "eval" | "isFinite" | "isNaN" | "parseFloat" | "parseInt"
+        | "decodeURI" | "decodeURIComponent" | "encodeURI" | "encodeURIComponent"
+        // Timer functions
+        | "setTimeout" | "setInterval" | "clearTimeout" | "clearInterval"
+        | "setImmediate" | "clearImmediate"
+        | "queueMicrotask"
+        // Console
+        | "console"
+        // Web APIs commonly available
+        | "fetch" | "Request" | "Response" | "Headers" | "URL" | "URLSearchParams"
+        | "FormData" | "Blob" | "File" | "FileReader"
+        | "TextEncoder" | "TextDecoder"
+        | "AbortController" | "AbortSignal"
+        | "Event" | "EventTarget" | "CustomEvent"
+        | "crypto" | "Crypto" | "CryptoKey" | "SubtleCrypto"
+        | "atob" | "btoa"
+        | "structuredClone"
+    )
+}
+
 pub struct ReferencesMark {
     pub mark: Mark,
     pub globals: Globals,
@@ -69,6 +109,11 @@ impl SourceGraph {
             };
 
             for reference in references {
+                // Skip JavaScript globals - they're provided by the runtime
+                if is_js_global(&reference.0) {
+                    continue;
+                }
+
                 // Resolve the reference to a declaration and track the final URI
                 // This is important for import chains: entry.ts -> a.ts -> b.ts
                 // When we resolve levelOne from entry.ts, we follow the import to a.ts

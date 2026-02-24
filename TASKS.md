@@ -4,13 +4,14 @@
 (none)
 
 ## Queued
-- [ ] Global support (Promise, setTimeout, etc.)
+- [ ] Timer globals (setTimeout, setInterval) - requires deno timer ops
 - [ ] Class declarations support  
 - [ ] Improve error messages (file/line/column)
 - [ ] Namespace imports (`import * as utils from "./utils.ts"`)
 - [ ] Import aliasing (`import { foo as bar }`)
 
 ## Done
+- [x] Global support (Promise, Object, Array, JSON, Math, etc.)
 - [x] Async function support
 - [x] Multiple host functions (`import { log, debug } from "funee"`)
 - [x] Non-exported declarations (private helper functions)
@@ -26,6 +27,6 @@
 
 ## Notes
 - Declaration-level bundling is the core differentiator
-- **15 E2E tests passing**
-- Globals (Promise, setTimeout, etc.) need to be handled separately
+- **17 E2E tests passing**
+- Timer globals (setTimeout/setInterval) need deno timer ops - separate task
 - Push after each completed task
