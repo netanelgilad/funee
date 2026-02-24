@@ -1,0 +1,43 @@
+{
+  "name": "funee",
+  "version": "0.1.0",
+  "description": "Standard library for the funee compile-time macro system",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./core": {
+      "types": "./core.ts",
+      "default": "./core.ts"
+    },
+    "./host": {
+      "types": "./host.ts",
+      "default": "./host.ts"
+    }
+  },
+  "keywords": [
+    "funee",
+    "macros",
+    "compile-time",
+    "metaprogramming",
+    "ast",
+    "bundler"
+  ],
+  "author": "funee contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/funee.git"
+  },
+  "files": [
+    "index.ts",
+    "core.ts",
+    "host.ts",
+    "FUNEE_LIB_DESIGN.md",
+    "README.md"
+  ]
+}
