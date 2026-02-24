@@ -1,7 +1,7 @@
 use crate::funee_identifier::FuneeIdentifier;
 use swc_common::SyntaxContext;
 use swc_ecma_ast::{
-    BlockStmt, CallExpr, Callee, Decl, Expr, ExprOrSpread, ExprStmt, FnDecl,
+    BlockStmt, CallExpr, Callee, ClassDecl, Decl, Expr, ExprOrSpread, ExprStmt, FnDecl,
     FnExpr, Ident, IdentName, MemberExpr, MemberProp, ModuleItem, Param, Pat, RestPat, ReturnStmt, Stmt,
     VarDecl, VarDeclKind, VarDeclarator,
 };
@@ -11,6 +11,8 @@ pub enum Declaration {
     Expr(Expr),
     FnExpr(FnExpr),
     FnDecl(FnDecl),
+    /// Class declaration
+    ClassDecl(ClassDecl),
     /// Variable declaration with initializer (e.g., `const add = () => ...`)
     VarInit(Expr),
     FuneeIdentifier(FuneeIdentifier),
@@ -39,6 +41,10 @@ impl Declaration {
                     function: fn_expr.function,
                 };
                 Stmt::Decl(Decl::Fn(fn_decl))
+            }
+            Declaration::ClassDecl(mut class_decl) => {
+                class_decl.ident.sym = name.into();
+                Stmt::Decl(Decl::Class(class_decl))
             }
             Declaration::Expr(fn_expr) => Stmt::Expr(ExprStmt {
                 span: Default::default(),
