@@ -91,6 +91,19 @@ describe('funee CLI', () => {
       expect(stdout).toContain('log works');
       expect(stdout).toContain('[DEBUG] debug works');
     });
+
+    it('supports async functions', async () => {
+      /**
+       * Tests that async/await works correctly
+       * Note: Using globals like Promise directly doesn't work yet
+       */
+      const { stdout, exitCode } = await runFunee(['async.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('async start');
+      expect(stdout).toContain('async helper called');
+      expect(stdout).toContain('async end');
+    });
   });
 
   describe('re-exports', () => {
