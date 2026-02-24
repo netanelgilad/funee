@@ -596,6 +596,7 @@ name = "funee"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "bytes-str",
  "deno_core",
  "petgraph",
  "relative-path",

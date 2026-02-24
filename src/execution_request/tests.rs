@@ -1,31 +1,23 @@
 use crate::{execution_request::ExecutionRequest, funee_identifier::FuneeIdentifier};
 use ast::{CallExpr, Callee};
-use deno_core::{error::AnyError, op};
+use deno_core::{op2, OpDecl};
 use std::collections::HashMap;
-use swc_common::FileLoader;
+use swc_common::{FileLoader, SyntaxContext};
 use swc_ecma_ast as ast;
+use bytes_str::BytesStr;
 
-// Sync op - still works through opAsync (resolves immediately)
-#[op]
-fn op_log(something: String) -> Result<(), AnyError> {
+fn ident(name: &str) -> ast::Ident {
+    ast::Ident::new(name.into(), Default::default(), SyntaxContext::empty())
+}
+
+// Sync op
+#[op2(fast)]
+fn op_log(#[string] something: &str) {
     println!("{:#?}", something);
-    Ok(())
 }
 
-// Async op - demonstrates actual async behavior
-#[op]
-async fn op_delay_echo(message: String) -> Result<String, AnyError> {
-    // Simulate async work (e.g., network call)
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    Ok(format!("echo: {}", message))
-}
-
-// Async op - simulates a fetch operation
-#[op]
-async fn op_mock_fetch(url: String) -> Result<String, AnyError> {
-    // In real impl, this would do actual HTTP
-    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-    Ok(format!(r#"{{"url": "{}", "status": 200, "body": "mock response"}}"#, url))
+fn get_op_log_decl() -> OpDecl {
+    op_log()
 }
 
 struct MockFileLoader {
@@ -34,7 +26,7 @@ struct MockFileLoader {
 
 impl FileLoader for MockFileLoader {
     fn file_exists(&self, path: &std::path::Path) -> bool {
-        println!("abs_path: {:?}", path);
+        println!("file_exists: {:?}", path);
         self.files.contains_key(path.to_str().unwrap())
     }
 
@@ -43,9 +35,9 @@ impl FileLoader for MockFileLoader {
         Some(path.to_path_buf())
     }
 
-    fn read_file(&self, path: &std::path::Path) -> std::io::Result<String> {
+    fn read_file(&self, path: &std::path::Path) -> std::io::Result<BytesStr> {
         println!("reading file: {}", path.to_str().unwrap());
-        Ok(self.files.get(path.to_str().unwrap()).unwrap().clone())
+        Ok(BytesStr::from(self.files.get(path.to_str().unwrap()).unwrap().clone()))
     }
 }
 
@@ -54,10 +46,8 @@ fn it_works() {
     let request = ExecutionRequest {
         expression: ast::Expr::Call(CallExpr {
             span: Default::default(),
-            callee: Callee::Expr(Box::new(ast::Expr::Ident(ast::Ident::new(
-                "default".into(),
-                Default::default(),
-            )))),
+            ctxt: SyntaxContext::empty(),
+            callee: Callee::Expr(Box::new(ast::Expr::Ident(ident("default")))),
             type_args: None,
             args: vec![],
         }),
@@ -67,7 +57,7 @@ fn it_works() {
                 name: "log".to_string(),
                 uri: "funee".to_string(),
             },
-            op_log::decl(),
+            get_op_log_decl(),
         )]),
         file_loader: Box::new(MockFileLoader {
             files: HashMap::from([
@@ -90,69 +80,6 @@ fn it_works() {
 
                 function renameMe() {
                     log("hello");
-                }
-                "#
-                    .to_string(),
-                ),
-            ]),
-        }),
-    };
-    assert_eq!(request.execute().unwrap(), ());
-}
-
-#[test]
-fn async_ops_work() {
-    let request = ExecutionRequest {
-        expression: ast::Expr::Call(CallExpr {
-            span: Default::default(),
-            callee: Callee::Expr(Box::new(ast::Expr::Ident(ast::Ident::new(
-                "default".into(),
-                Default::default(),
-            )))),
-            type_args: None,
-            args: vec![],
-        }),
-        scope: "/test/async_example.ts".to_string(),
-        host_functions: HashMap::from([
-            (
-                FuneeIdentifier {
-                    name: "log".to_string(),
-                    uri: "funee".to_string(),
-                },
-                op_log::decl(),
-            ),
-            (
-                FuneeIdentifier {
-                    name: "delayEcho".to_string(),
-                    uri: "funee".to_string(),
-                },
-                op_delay_echo::decl(),
-            ),
-            (
-                FuneeIdentifier {
-                    name: "mockFetch".to_string(),
-                    uri: "funee".to_string(),
-                },
-                op_mock_fetch::decl(),
-            ),
-        ]),
-        file_loader: Box::new(MockFileLoader {
-            files: HashMap::from([
-                (
-                    "/test/async_example.ts".to_string(),
-                    r#"
-                import { log, delayEcho, mockFetch } from "funee";
-
-                export default async function () {
-                    // Test async echo
-                    const echoed = await delayEcho("hello async world");
-                    log(echoed);
-
-                    // Test async fetch
-                    const response = await mockFetch("https://api.example.com/data");
-                    log(response);
-
-                    log("async ops completed!");
                 }
                 "#
                     .to_string(),

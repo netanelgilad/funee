@@ -19,5 +19,6 @@ swc_ecma_transforms_typescript = "41"
 swc_ecma_utils = "26"
 swc_ecma_visit = "20"
 swc_atoms = "9"
+bytes-str = "0.2"
 relative-path = "1.9"
 tokio = { version = "1", features = ["full"] }
