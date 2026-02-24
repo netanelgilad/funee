@@ -31,6 +31,15 @@ async function runFunee(args: string[], options: { cwd?: string } = {}): Promise
   });
 }
 
+// Helper to run funee with --emit flag to get bundled output
+async function runFuneeEmit(args: string[], options: { cwd?: string } = {}): Promise<{
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}> {
+  return runFunee(['--emit', ...args], options);
+}
+
 describe('funee CLI', () => {
   beforeAll(() => {
     // Build funee in release mode before tests
@@ -61,54 +70,104 @@ describe('funee CLI', () => {
     });
   });
 
-  describe('module resolution', () => {
-    it('resolves relative imports', async () => {
+  describe('re-exports', () => {
+    it('resolves re-exports through barrel files', async () => {
       /**
-       * Tests that funee correctly resolves and bundles
-       * relative imports like `import { foo } from "./other.ts"`
+       * Tests that funee correctly resolves re-exports:
+       * entry.ts -> barrel.ts (export { helper } from "./impl.ts") -> impl.ts
+       * 
+       * This is the FuneeIdentifier chain resolution in source_graph.rs
        */
-      // TODO: Create fixture with relative imports
-      expect(true).toBe(true); // Placeholder
+      const { stdout, stderr, exitCode } = await runFunee(['reexports/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('helper called');
+      expect(stdout).toContain('reexports work');
     });
 
-    it('handles the funee host module', async () => {
+    it('resolves aliased re-exports', async () => {
       /**
-       * Tests that `import { log } from "funee"` correctly
-       * maps to host functions provided by the runtime
+       * Tests: export { helper as aliased } from "./impl.ts"
+       * The original name should be used when loading the declaration
        */
-      // This is covered by the basic execution test
+      // TODO: Create a fixture that uses the aliased export
       expect(true).toBe(true);
     });
   });
 
-  describe('declaration graph', () => {
-    it('only bundles referenced declarations', async () => {
+  describe('import chains', () => {
+    it('resolves deep import chains (A -> B -> C)', async () => {
       /**
-       * Funee should only include declarations that are
-       * actually referenced from the entry point, enabling
-       * tree-shaking at the declaration level
+       * Tests that the declaration graph correctly walks through
+       * multiple levels of imports:
+       * entry.ts -> a.ts -> b.ts -> c.ts
+       * 
+       * All functions should be available and called in order
        */
-      // TODO: Create fixture and verify output
-      expect(true).toBe(true);
+      const { stdout, stderr, exitCode } = await runFunee(['chain/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('level one');
+      expect(stdout).toContain('level two');
+      expect(stdout).toContain('level three - deepest');
+      expect(stdout).toContain('chain works');
+    });
+  });
+
+  describe('tree shaking', () => {
+    it('only includes referenced declarations', async () => {
+      /**
+       * Core value proposition of declaration-level bundling:
+       * utils.ts exports 3 functions, but only `used` is imported
+       * 
+       * The bundled output should NOT contain `unused` or `alsoUnused`
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['treeshake/entry.ts']);
+      
+      // Should run successfully
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('used function');
+      expect(stdout).toContain('tree shaking works');
+      
+      // Should NOT contain unused functions' output
+      expect(stdout).not.toContain('unused function - should NOT appear');
+      expect(stdout).not.toContain('also unused - should NOT appear');
+    });
+
+    it('emitted code does not contain unused declarations', async () => {
+      /**
+       * Verify at the code level that unused functions are tree-shaken
+       * by checking the --emit output doesn't contain them
+       */
+      const { stdout, exitCode } = await runFuneeEmit(['treeshake/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      
+      // The emitted JS should contain the used function
+      expect(stdout).toContain('used');
+      
+      // But should NOT contain the unused functions
+      expect(stdout).not.toContain('unused');
+      expect(stdout).not.toContain('alsoUnused');
     });
   });
 
   describe('error handling', () => {
-    it('reports parse errors with location', async () => {
-      /**
-       * When TypeScript has syntax errors, funee should
-       * report them with file, line, and column information
-       */
-      // TODO: Create fixture with syntax error
-      expect(true).toBe(true);
-    });
-
     it('reports missing import errors', async () => {
       /**
        * When an import cannot be resolved, funee should
        * give a clear error message
        */
       // TODO: Create fixture with bad import
+      expect(true).toBe(true);
+    });
+
+    it('reports parse errors with location', async () => {
+      /**
+       * When TypeScript has syntax errors, funee should
+       * report them with file, line, and column information
+       */
+      // TODO: Create fixture with syntax error
       expect(true).toBe(true);
     });
   });

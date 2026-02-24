@@ -21,13 +21,21 @@ fn main() -> Result<(), AnyError> {
     let args: Vec<String> = env::args().collect();
     
     if args.len() < 2 {
-        eprintln!("Usage: funee <file.ts>");
+        eprintln!("Usage: funee [--emit] <file.ts>");
+        eprintln!("");
+        eprintln!("Options:");
+        eprintln!("  --emit    Print bundled JavaScript instead of executing");
         eprintln!("");
         eprintln!("Runs the default export function from the given TypeScript file.");
         std::process::exit(1);
     }
     
-    let file_path = &args[1];
+    // Parse args
+    let emit_only = args.contains(&"--emit".to_string());
+    let file_path = args.iter()
+        .skip(1)
+        .find(|arg| !arg.starts_with("--"))
+        .expect("No file path provided");
     let absolute_path = if Path::new(file_path).is_absolute() {
         file_path.clone()
     } else {
@@ -68,7 +76,11 @@ fn main() -> Result<(), AnyError> {
         ..Default::default()
     };
     
-    request.execute()?;
+    if emit_only {
+        println!("{}", request.emit());
+    } else {
+        request.execute()?;
+    }
     
     Ok(())
 }

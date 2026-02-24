@@ -36,6 +36,19 @@ impl Default for ExecutionRequest {
 }
 
 impl ExecutionRequest {
+    /// Build the source graph and emit bundled JavaScript code
+    pub fn emit(self) -> String {
+        let source_graph = SourceGraph::load(LoadParams {
+            scope: self.scope,
+            expression: self.expression,
+            host_functions: self.host_functions.keys().cloned().collect(),
+            file_loader: self.file_loader,
+        });
+
+        source_graph.into_js_execution_code()
+    }
+
+    /// Build and execute the bundled code
     pub fn execute(self) -> Result<(), AnyError> {
         let source_graph = SourceGraph::load(LoadParams {
             scope: self.scope,

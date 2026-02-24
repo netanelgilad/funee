@@ -69,14 +69,21 @@ impl SourceGraph {
             };
 
             for reference in references {
-                let declaration = if params.host_functions.contains(&reference.1) {
-                    Declaration::HostFn(
-                        params
-                            .host_functions
-                            .get(&reference.1)
-                            .unwrap()
-                            .name
-                            .clone(),
+                // Resolve the reference to a declaration and track the final URI
+                // This is important for import chains: entry.ts -> a.ts -> b.ts
+                // When we resolve levelOne from entry.ts, we follow the import to a.ts
+                // The node should have a.ts as its URI so references within levelOne resolve correctly
+                let (declaration, resolved_uri) = if params.host_functions.contains(&reference.1) {
+                    (
+                        Declaration::HostFn(
+                            params
+                                .host_functions
+                                .get(&reference.1)
+                                .unwrap()
+                                .name
+                                .clone(),
+                        ),
+                        reference.1.uri.clone(), // Host functions don't need real URI
                     )
                 } else {
                     let mut current_identifier = reference.1.clone();
@@ -84,16 +91,19 @@ impl SourceGraph {
                         let declaration = load_declaration(&cm, &current_identifier)
                             .expect(
                                 &("Could not find declaration for ".to_owned()
-                                    + reference.1.uri.as_str()
+                                    + current_identifier.uri.as_str()
                                     + ":"
-                                    + reference.1.name.as_str()),
+                                    + current_identifier.name.as_str()),
                             )
                             .declaration;
 
                         if let Declaration::FuneeIdentifier(i) = declaration {
                             if params.host_functions.contains(&i) {
-                                break Declaration::HostFn(
-                                    params.host_functions.get(&i).unwrap().name.clone(),
+                                break (
+                                    Declaration::HostFn(
+                                        params.host_functions.get(&i).unwrap().name.clone(),
+                                    ),
+                                    current_identifier.uri.clone(),
                                 );
                             }
                             let relative_path = RelativePath::new(&i.uri);
@@ -111,13 +121,13 @@ impl SourceGraph {
                                     .to_string(),
                             };
                         } else {
-                            break declaration;
+                            break (declaration, current_identifier.uri.clone());
                         }
                     }
                 };
 
                 if !definitions_index.contains_key(&reference.1) {
-                    let node_index = graph.add_node((reference.1.uri.clone(), declaration));
+                    let node_index = graph.add_node((resolved_uri, declaration));
                     graph.add_edge(nx, node_index, reference.0);
                     definitions_index.insert(reference.1, node_index);
 
