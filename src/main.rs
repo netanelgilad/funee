@@ -82,10 +82,39 @@ fn main() -> Result<(), AnyError> {
         ),
     ]);
     
+    // Locate funee-lib relative to the executable or use FUNEE_LIB_PATH env var
+    let funee_lib_path = env::var("FUNEE_LIB_PATH").ok().or_else(|| {
+        // Try to find funee-lib relative to the current executable
+        env::current_exe().ok().and_then(|exe| {
+            // In dev: exe is in target/release or target/debug
+            // funee-lib is in the project root
+            let mut path = exe.clone();
+            // Go up from target/release/funee to project root
+            for _ in 0..3 {
+                path.pop();
+            }
+            path.push("funee-lib");
+            path.push("index.ts");
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+            // Also check if funee-lib is next to the executable
+            let mut path = exe;
+            path.pop();
+            path.push("funee-lib");
+            path.push("index.ts");
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+            None
+        })
+    });
+    
     let request = ExecutionRequest {
         expression: call_default,
         scope: absolute_path,
         host_functions,
+        funee_lib_path,
         ..Default::default()
     };
     

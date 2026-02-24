@@ -24,6 +24,8 @@ pub struct ExecutionRequest {
     pub scope: String,
     pub host_functions: HashMap<FuneeIdentifier, OpDecl>,
     pub file_loader: Box<dyn FileLoader + Sync + Send>,
+    /// Path to the funee standard library (funee-lib/index.ts)
+    pub funee_lib_path: Option<String>,
 }
 
 impl Default for ExecutionRequest {
@@ -35,6 +37,7 @@ impl Default for ExecutionRequest {
             scope: "".to_string(),
             host_functions: HashMap::new(),
             file_loader: Box::new(RealFileLoader),
+            funee_lib_path: None,
         }
     }
 }
@@ -47,6 +50,7 @@ impl ExecutionRequest {
             expression: self.expression,
             host_functions: self.host_functions.keys().cloned().collect(),
             file_loader: self.file_loader,
+            funee_lib_path: self.funee_lib_path,
         });
 
         source_graph.into_js_execution_code()
@@ -59,6 +63,7 @@ impl ExecutionRequest {
             expression: self.expression,
             host_functions: self.host_functions.keys().cloned().collect(),
             file_loader: self.file_loader,
+            funee_lib_path: self.funee_lib_path,
         });
 
         let execution_code = source_graph.into_js_execution_code();
@@ -72,6 +77,7 @@ impl ExecutionRequest {
             self.host_functions.into_values().collect(),
         )) {
             eprintln!("error: {}", error);
+            return Err(error);
         }
 
         Ok(())

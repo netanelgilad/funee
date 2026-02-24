@@ -116,9 +116,9 @@ export interface CanonicalName {
  * const addClosure = closure(add);  // Bundler intercepts this call
  * ```
  */
-export function createMacro<T, R>(
+export const createMacro = <T, R>(
   fn: (closure: Closure<T>) => Closure<R>
-): (value: T) => R {
+): ((value: T) => R) => {
   // This function should NEVER be called at runtime
   // The bundler intercepts all calls to macro-marked functions
   // If this executes, it means the bundler failed to expand the macro
@@ -126,7 +126,7 @@ export function createMacro<T, R>(
     "createMacro was not expanded by the bundler. " +
     "This indicates a bug in the macro system or incorrect usage."
   );
-}
+};
 
 /**
  * Closure constructor function - Creates Closure objects at runtime
@@ -152,18 +152,16 @@ export function createMacro<T, R>(
  * });
  * ```
  */
-export function Closure<T>(data: {
+export const Closure = <T>(data: {
   expression: any;
   references: any;
-}): Closure<T> {
-  return {
-    expression: data.expression,
-    // Handle both Map and plain object formats for references
-    references: data.references instanceof Map
-      ? data.references
-      : new Map(Object.entries(data.references || {}))
-  };
-}
+}): Closure<T> => ({
+  expression: data.expression,
+  // Handle both Map and plain object formats for references
+  references: data.references instanceof Map
+    ? data.references
+    : new Map(Object.entries(data.references || {}))
+});
 
 /**
  * MacroFunction type - The signature of a compile-time macro transformation

@@ -31,6 +31,7 @@ export type {
 
 export {
   createMacro,
+  Closure,
   Closure as ClosureConstructor
 } from "./core.ts";
 
@@ -39,7 +40,3 @@ export {
   log,
   debug
 } from "./host.ts";
-
-// Re-export everything for convenience
-export * from "./core.ts";
-export * from "./host.ts";

@@ -79,6 +79,8 @@ pub struct LoadParams {
     pub expression: Expr,
     pub host_functions: HashSet<FuneeIdentifier>,
     pub file_loader: Box<dyn FileLoader + Sync + Send>,
+    /// Path to the funee standard library (funee-lib/index.ts)
+    pub funee_lib_path: Option<String>,
 }
 
 impl SourceGraph {
@@ -161,19 +163,28 @@ impl SourceGraph {
                                     current_identifier.uri.clone(),
                                 );
                             }
-                            let relative_path = RelativePath::new(&i.uri);
-                            let current_dir = Path::new(&current_identifier.uri)
-                                .parent()
-                                .unwrap()
-                                .to_str()
-                                .unwrap();
-                            current_identifier = FuneeIdentifier {
-                                name: i.name,
-                                uri: relative_path
+                            // Handle bare "funee" specifier specially
+                            let resolved_uri = if i.uri == "funee" {
+                                params.funee_lib_path.clone().unwrap_or_else(|| {
+                                    eprintln!("error: Cannot resolve 'funee' - no funee_lib_path configured");
+                                    std::process::exit(1);
+                                })
+                            } else {
+                                let relative_path = RelativePath::new(&i.uri);
+                                let current_dir = Path::new(&current_identifier.uri)
+                                    .parent()
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap();
+                                relative_path
                                     .to_logical_path(&current_dir)
                                     .to_str()
                                     .unwrap()
-                                    .to_string(),
+                                    .to_string()
+                            };
+                            current_identifier = FuneeIdentifier {
+                                name: i.name,
+                                uri: resolved_uri,
                             };
                         } else {
                             break (declaration, current_identifier.uri.clone());
