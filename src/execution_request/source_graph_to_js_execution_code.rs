@@ -21,7 +21,7 @@ impl SourceGraph {
                 .map(|e| {
                     (
                         e.weight().into(),
-                        "declaration_".to_string() + &e.target().index().to_string(),
+                        format!("declaration_{}", e.target().index()),
                     )
                 })
                 .collect();
@@ -32,7 +32,7 @@ impl SourceGraph {
                 (&self.references_mark.globals, self.references_mark.mark),
             );
             module_items.push(
-                declaration.into_module_item("declaration_".to_string() + &nx.index().to_string()),
+                declaration.into_module_item(format!("declaration_{}", nx.index())),
             );
         }
         let module = Module {
@@ -41,8 +41,8 @@ impl SourceGraph {
             span: Default::default(),
         };
         let (mut srcmap, buf) = emit_module(self.source_map.clone(), module);
-        let execution_code = String::from_utf8(buf).expect("asdasd")
-            + &get_inline_source_map(&self.source_map, &mut srcmap);
-        execution_code
+        let code = String::from_utf8(buf).expect("failed to convert to utf8");
+        let srcmap_str = get_inline_source_map(&self.source_map, &mut srcmap);
+        format!("{}{}", code, srcmap_str)
     }
 }

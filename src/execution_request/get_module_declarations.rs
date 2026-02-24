@@ -20,10 +20,20 @@ pub struct ModuleDeclaration {
     pub declaration: Declaration,
 }
 
+fn atom_to_string(atom: &swc_atoms::Atom) -> String {
+    // Atom derefs to str for valid UTF-8
+    (&**atom).to_string()
+}
+
+fn wtf8_to_string(atom: &swc_atoms::Wtf8Atom) -> String {
+    // Wtf8Atom for string literals
+    atom.as_str().unwrap_or_default().to_string()
+}
+
 fn get_name_from_module_export_name(name: &ModuleExportName) -> String {
     match name {
-        ModuleExportName::Ident(ref ident) => ident.sym.to_string(),
-        ModuleExportName::Str(ref s) => s.value.to_string(),
+        ModuleExportName::Ident(ref ident) => atom_to_string(&ident.sym),
+        ModuleExportName::Str(ref s) => wtf8_to_string(&s.value),
     }
 }
 
@@ -44,7 +54,7 @@ fn get_module_declarations_from_module_item(
         },
         ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(decl)) => match decl.decl {
             Decl::Fn(fn_decl) => vec![(
-                fn_decl.ident.sym.to_string(),
+                atom_to_string(&fn_decl.ident.sym),
                 ModuleDeclaration {
                     exported: true,
                     declaration: Declaration::FnDecl(fn_decl),
@@ -66,7 +76,7 @@ fn get_module_declarations_from_module_item(
                         declaration: Declaration::FuneeIdentifier(FuneeIdentifier {
                             name: get_name_from_module_export_name(&n.orig),
                             uri: match decl.src {
-                                Some(ref src) => src.value.to_string(),
+                                Some(ref src) => wtf8_to_string(&src.value),
                                 None => current_uri.clone(),
                             },
                         }),
@@ -81,20 +91,20 @@ fn get_module_declarations_from_module_item(
             .iter()
             .filter_map(|import_specifier| match import_specifier {
                 ImportSpecifier::Named(n) => Some((
-                    n.local.sym.to_string(),
+                    atom_to_string(&n.local.sym),
                     ModuleDeclaration {
                         exported: false,
                         declaration: Declaration::FuneeIdentifier(FuneeIdentifier {
                             name: match n.imported {
                                 Some(ref imported) => get_name_from_module_export_name(imported),
-                                None => n.local.sym.to_string(),
+                                None => atom_to_string(&n.local.sym),
                             },
                             uri: get_import_decl_uri(&current_uri, &decl),
                         }),
                     },
                 )),
                 ImportSpecifier::Default(n) => Some((
-                    n.local.sym.to_string(),
+                    atom_to_string(&n.local.sym),
                     ModuleDeclaration {
                         exported: false,
                         declaration: Declaration::FuneeIdentifier(FuneeIdentifier {
@@ -108,7 +118,7 @@ fn get_module_declarations_from_module_item(
             .collect(),
         ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(_)) => vec![],
         ModuleItem::Stmt(Stmt::Decl(Decl::Fn(func))) => vec![(
-            func.ident.sym.to_string(),
+            atom_to_string(&func.ident.sym),
             ModuleDeclaration {
                 exported: false,
                 declaration: Declaration::FnDecl(func),
@@ -120,7 +130,7 @@ fn get_module_declarations_from_module_item(
 
 fn get_import_decl_uri(current_uri: &String, decl: &swc_ecma_ast::ImportDecl) -> String {
     Path::new(current_uri)
-        .join(Path::new(&decl.src.value.to_string().clone()))
+        .join(Path::new(&wtf8_to_string(&decl.src.value)))
         .to_str()
         .unwrap()
         .to_string()

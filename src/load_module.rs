@@ -1,14 +1,13 @@
 use std::rc::Rc;
 use swc_common::{Globals, Mark, SourceMap, GLOBALS};
-use swc_ecma_ast::EsVersion;
-use swc_ecma_parser::{parse_file_as_module, Syntax::Typescript, TsConfig};
+use swc_ecma_ast::{EsVersion, Program};
+use swc_ecma_parser::{parse_file_as_module, Syntax, TsSyntax};
 use swc_ecma_transforms_typescript::strip;
-use swc_ecma_visit::FoldWith;
 
 pub fn load_module(cm: &Rc<SourceMap>, path: std::path::PathBuf) -> swc_ecma_ast::Module {
     let m = parse_file_as_module(
         &*cm.load_file(&path).unwrap(),
-        Typescript(TsConfig {
+        Syntax::Typescript(TsSyntax {
             ..Default::default()
         }),
         EsVersion::latest(),
@@ -18,6 +17,14 @@ pub fn load_module(cm: &Rc<SourceMap>, path: std::path::PathBuf) -> swc_ecma_ast
     .expect("failed to parse input as a module");
 
     let globals = Globals::default();
-    let module = GLOBALS.set(&globals, || m.fold_with(&mut strip(Mark::new())));
-    module
+    GLOBALS.set(&globals, || {
+        let unresolved_mark = Mark::new();
+        let top_level_mark = Mark::new();
+        let mut pass = strip(unresolved_mark, top_level_mark);
+        let program = Program::Module(m);
+        match program.apply(&mut pass) {
+            Program::Module(m) => m,
+            _ => panic!("expected module"),
+        }
+    })
 }

@@ -19,9 +19,7 @@ pub fn emit_module(cm: Rc<SourceMap>, module: Module) -> (Vec<(BytePos, LineCol)
         )) as Box<dyn WriteJs>;
 
         let mut emitter = Emitter {
-            cfg: swc_ecma_codegen::Config {
-                ..Default::default()
-            },
+            cfg: swc_ecma_codegen::Config::default(),
             cm: cm,
             comments: None,
             wr,

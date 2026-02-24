@@ -30,8 +30,8 @@ impl Visit for ResolveReferences {
     noop_visit_type!();
 
     fn visit_ident(&mut self, n: &Ident) {
-        if n.span.has_mark(self.unresolved_mark) {
-            self.references.insert(n.sym.to_string());
+        if n.ctxt.has_mark(self.unresolved_mark) {
+            self.references.insert(n.sym.as_str().to_string());
         }
     }
 }
@@ -94,8 +94,8 @@ impl<'a> VisitMut for RenameReferences {
     noop_visit_mut_type!();
 
     fn visit_mut_ident(&mut self, n: &mut Ident) {
-        if n.span.has_mark(self.unresolved_mark) {
-            let name = n.sym.as_ref();
+        if n.ctxt.has_mark(self.unresolved_mark) {
+            let name = n.sym.as_str();
             if let Some(to_replace) = self.to_replace.get(name) {
                 n.sym = to_replace.clone().into();
             }
