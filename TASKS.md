@@ -5,13 +5,13 @@
 
 ## Queued
 - [ ] Timer globals (setTimeout, setInterval) - requires deno timer ops
-- [ ] Improve error messages (file/line/column)
 - [ ] Namespace imports (`import * as utils from "./utils.ts"`)
-- [ ] Import aliasing (`import { foo as bar }`)
 - [ ] Class constructor parameters (currently fails)
 - [ ] Class inheritance/extends
+- [ ] Improve error messages (file/line/column)
 
 ## Done
+- [x] Import aliasing (`import { foo as bar }`)
 - [x] Class declarations support
 - [x] Global support (Promise, Object, Array, JSON, Math, etc.)
 - [x] Async function support
@@ -29,6 +29,6 @@
 
 ## Notes
 - Declaration-level bundling is the core differentiator
-- **19 E2E tests passing**
+- **20 E2E tests passing**
 - Timer globals need deno timer ops - separate task
 - Class constructor parameters need work on resolver

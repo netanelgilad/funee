@@ -153,6 +153,24 @@ describe('funee CLI', () => {
     });
   });
 
+  describe('import aliasing', () => {
+    it('supports import { foo as bar } aliasing', async () => {
+      /**
+       * Tests that import aliasing works correctly:
+       * import { originalName as aliased } from "./utils.ts"
+       * 
+       * The alias should be used locally, but the original export is resolved
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['import-alias/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('testing import aliases');
+      expect(stdout).toContain('original function called');
+      expect(stdout).toContain('another function called');
+      expect(stdout).toContain('import alias test complete');
+    });
+  });
+
   describe('private helpers', () => {
     it('includes non-exported functions used by exported ones', async () => {
       /**
