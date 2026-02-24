@@ -79,6 +79,18 @@ describe('funee CLI', () => {
       expect(exitCode).toBe(0);
       expect(stdout).toContain('default export expression works');
     });
+
+    it('supports multiple host functions', async () => {
+      /**
+       * Tests that multiple imports from "funee" work:
+       * import { log, debug } from "funee"
+       */
+      const { stdout, exitCode } = await runFunee(['multi-host.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('log works');
+      expect(stdout).toContain('[DEBUG] debug works');
+    });
   });
 
   describe('re-exports', () => {

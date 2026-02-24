@@ -17,6 +17,12 @@ fn op_log(#[string] message: &str) {
     println!("{}", message);
 }
 
+/// Host function: debug log (prefixed)
+#[op2(fast)]
+fn op_debug(#[string] message: &str) {
+    println!("[DEBUG] {}", message);
+}
+
 fn main() -> Result<(), AnyError> {
     let args: Vec<String> = env::args().collect();
     
@@ -66,6 +72,13 @@ fn main() -> Result<(), AnyError> {
                 uri: "funee".to_string(),
             },
             op_log(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "debug".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_debug(),
         ),
     ]);
     
