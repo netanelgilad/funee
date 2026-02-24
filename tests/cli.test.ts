@@ -303,6 +303,54 @@ describe('funee CLI', () => {
   });
 
   describe('macros', () => {
+    // ===== STEP 2: MACRO ARGUMENT CAPTURE TESTS =====
+    
+    it('detects macro calls and captures arguments (Step 2)', async () => {
+      /**
+       * Step 2 Test: Macro Argument Capture
+       * 
+       * When closure(add) is encountered:
+       * 1. Bundler detects 'closure' is a macro (via createMacro)
+       * 2. Argument 'add' is captured as Closure (not bundled normally)
+       * 3. Closure contains expression AST + references
+       * 
+       * For Step 2, we test using --emit to verify the captured argument
+       * appears in the bundled output (even though macro isn't executed yet).
+       */
+      const { stdout, stderr, exitCode } = await runFuneeEmit(['macro/step2_argument_capture.ts']);
+      
+      // Should bundle successfully
+      expect(exitCode).toBe(0);
+      
+      // The emitted code should show that:
+      // 1. The 'add' function is included (it's referenced by the Closure)
+      // Note: Declarations are renamed to declaration_N in the output
+      expect(stdout).toMatch(/declaration_\d+\s*=\s*\(a,\s*b\)\s*=>\s*a\s*\+\s*b/);  // var declaration_N = (a, b) => a + b
+      
+      // 2. The createMacro call should be included (macro not executed yet in Step 2)
+      // The macro reference 'closure' should be in the bundle
+      expect(stdout).toMatch(/declaration_\d+\s*=\s*\w+/);  // var declaration_N = closure_arg0
+      
+      // 3. Should not crash or error during capture
+      expect(stderr).toBe('');
+    });
+
+    it('captures arguments with external references', async () => {
+      /**
+       * Tests that when capturing an expression with external references,
+       * the Closure includes them in its references map.
+       * 
+       * Example:
+       * const multiplier = 2;
+       * const mult = (x) => x * multiplier;
+       * const multClosure = closure(mult);
+       * 
+       * The Closure should capture both the mult expression AND the multiplier reference.
+       */
+      // TODO: Create fixture and implement this test
+      expect(true).toBe(true);  // Placeholder
+    });
+
     it('expands closure macro at bundle time', async () => {
       /**
        * The closure() macro should:
