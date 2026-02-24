@@ -148,3 +148,173 @@ export const closure = createMacro(<T>(input: T) => {
         }
     }
 }
+
+#[test]
+fn test_macro_functions_tracked_in_source_graph() {
+    use crate::execution_request::source_graph::{LoadParams, SourceGraph};
+    use std::collections::HashSet;
+    use swc_common::SyntaxContext;
+
+    // Create file content that uses macro functions
+    let file_loader = Box::new(MockFileLoader {
+        files: HashMap::from([
+            (
+                "/test/entry.ts".to_string(),
+                r#"
+import { closure } from "./macro-lib.ts";
+
+const add = (a: number, b: number) => a + b;
+const addClosure = closure(add);
+
+export default function() {
+    return addClosure;
+}
+                "#
+                .to_string(),
+            ),
+            (
+                "/test/macro-lib.ts".to_string(),
+                r#"
+export function createMacro<T, R>(fn: (closure: T) => R): (value: T) => R {
+    throw new Error("Macro not expanded");
+}
+
+export const closure = createMacro(<T>(input: T) => {
+    return input;
+});
+                "#
+                .to_string(),
+            ),
+        ]),
+    });
+
+    // Build the source graph
+    let source_graph = SourceGraph::load(LoadParams {
+        scope: "/test/entry.ts".to_string(),
+        expression: ast::Expr::Call(CallExpr {
+            span: Default::default(),
+            ctxt: SyntaxContext::empty(),
+            callee: Callee::Expr(Box::new(ast::Expr::Ident(ident("default")))),
+            type_args: None,
+            args: vec![],
+        }),
+        host_functions: HashSet::new(),
+        file_loader,
+    });
+
+    // Verify that 'closure' is tracked as a macro function
+    assert!(
+        source_graph.macro_functions.iter().any(|id| id.name == "closure"),
+        "Expected 'closure' to be tracked as a macro function. Found: {:?}",
+        source_graph.macro_functions
+    );
+    
+    println!("✅ macro_functions correctly tracks 'closure'");
+    println!("   Tracked macros: {:?}", source_graph.macro_functions);
+}
+
+#[test]
+fn test_macro_call_argument_captured_as_closure() {
+    use crate::execution_request::declaration::Declaration;
+    use crate::execution_request::source_graph::{LoadParams, SourceGraph};
+    use petgraph::visit::EdgeRef;
+    use std::collections::HashSet;
+    use swc_common::SyntaxContext;
+
+    // Create file content with a macro call
+    let file_loader = Box::new(MockFileLoader {
+        files: HashMap::from([
+            (
+                "/test/entry.ts".to_string(),
+                r#"
+import { closure } from "./macro-lib.ts";
+
+const add = (a: number, b: number) => a + b;
+const addClosure = closure(add);
+
+export default function() {
+    return addClosure;
+}
+                "#
+                .to_string(),
+            ),
+            (
+                "/test/macro-lib.ts".to_string(),
+                r#"
+export function createMacro<T, R>(fn: (closure: T) => R): (value: T) => R {
+    throw new Error("Macro not expanded");
+}
+
+export const closure = createMacro(<T>(input: T) => {
+    return input;
+});
+                "#
+                .to_string(),
+            ),
+        ]),
+    });
+
+    // Build the source graph
+    let source_graph = SourceGraph::load(LoadParams {
+        scope: "/test/entry.ts".to_string(),
+        expression: ast::Expr::Call(CallExpr {
+            span: Default::default(),
+            ctxt: SyntaxContext::empty(),
+            callee: Callee::Expr(Box::new(ast::Expr::Ident(ident("default")))),
+            type_args: None,
+            args: vec![],
+        }),
+        host_functions: HashSet::new(),
+        file_loader,
+    });
+
+    // Look for ClosureValue nodes in the graph
+    let mut found_closure = false;
+    for node_idx in source_graph.graph.node_indices() {
+        let (_uri, declaration) = &source_graph.graph[node_idx];
+        if let Declaration::ClosureValue(closure) = declaration {
+            found_closure = true;
+            println!("✅ Found ClosureValue node!");
+            println!("   Expression captured: {:?}", closure.expression);
+            println!("   References: {:?}", closure.references);
+            
+            // Verify the closure has the expected structure
+            // The captured expression should be the identifier 'add'
+            match &closure.expression {
+                ast::Expr::Ident(ident) => {
+                    assert_eq!(
+                        ident.sym.as_ref(),
+                        "add",
+                        "Expected identifier to be 'add', got: {:?}",
+                        ident.sym
+                    );
+                    println!("   ✓ Expression is an identifier 'add' (expected)");
+                }
+                _ => {
+                    panic!("Expected closure expression to be an identifier, got: {:?}", closure.expression);
+                }
+            }
+            
+            // The closure should have a reference to 'add' (the actual function definition)
+            assert_eq!(
+                closure.references.len(),
+                1,
+                "Expected one reference (to 'add'), found: {:?}",
+                closure.references
+            );
+            assert!(
+                closure.references.contains_key("add"),
+                "Expected reference to 'add', found: {:?}",
+                closure.references.keys()
+            );
+            println!("   ✓ Closure correctly captures reference to 'add'");
+        }
+    }
+
+    assert!(
+        found_closure,
+        "Expected to find at least one ClosureValue node in the graph"
+    );
+    
+    println!("\n✅ Step 2 implementation working: macro call arguments are captured as Closures!");
+}

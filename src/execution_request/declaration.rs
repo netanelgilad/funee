@@ -1,4 +1,5 @@
 use crate::funee_identifier::FuneeIdentifier;
+use super::closure::Closure;
 use swc_common::SyntaxContext;
 use swc_ecma_ast::{
     BlockStmt, CallExpr, Callee, Decl, Expr, ExprOrSpread, ExprStmt, FnDecl,
@@ -15,6 +16,9 @@ pub enum Declaration {
     VarInit(Expr),
     /// Macro created via createMacro() - contains the macro function
     Macro(Expr),
+    /// Captured closure (expression + out-of-scope references)
+    /// Used when an expression is passed as an argument to a macro
+    ClosureValue(Closure),
     FuneeIdentifier(FuneeIdentifier),
     HostFn(String),
 }
@@ -73,6 +77,23 @@ impl Declaration {
                         span: Default::default(),
                         name: Pat::Ident(ident(&name).into()),
                         init: Some(Box::new(macro_fn)),
+                        definite: false,
+                    }],
+                })))
+            }
+            Declaration::ClosureValue(closure) => {
+                // Emit closure expression wrapped in a Closure object construction
+                // TODO: Emit proper Closure({ expression: ..., references: ... })
+                // For now, just emit the expression as a placeholder
+                Stmt::Decl(Decl::Var(Box::new(VarDecl {
+                    span: Default::default(),
+                    ctxt: SyntaxContext::empty(),
+                    kind: VarDeclKind::Var,
+                    declare: false,
+                    decls: vec![VarDeclarator {
+                        span: Default::default(),
+                        name: Pat::Ident(ident(&name).into()),
+                        init: Some(Box::new(closure.expression.clone())),
                         definite: false,
                     }],
                 })))

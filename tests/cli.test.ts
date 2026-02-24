@@ -329,6 +329,85 @@ describe('funee CLI', () => {
       // TODO: Test with expression that has external refs
       expect(true).toBe(true);
     });
+
+    // ===== STEP 3: MACRO EXECUTION TESTS =====
+    
+    it('expands simple addOne macro at compile time', async () => {
+      /**
+       * Step 3: Execute macros during bundling using deno_core
+       * 
+       * The addOne macro should:
+       * 1. Be detected as a macro (createMacro call)
+       * 2. When addOne(5) is found, execute the macro function
+       * 3. Replace the call with the result: (5) + 1
+       * 4. Final output should be 6 (evaluated at runtime)
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['macro/simple_macro.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('6');  // (5) + 1 = 6
+    });
+
+    it('expands macro that adds references', async () => {
+      /**
+       * Test that macros can add new references to the closure
+       * 
+       * The withAdd macro should:
+       * 1. Take an expression (10)
+       * 2. Add 'add' to its references
+       * 3. Return expression that calls add(10, 5)
+       * 4. Funee should include 'add' function in the bundle
+       */
+      const { stdout, exitCode } = await runFunee(['macro/macro_with_refs.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('15');  // add(10, 5) = 15
+    });
+
+    it('handles recursive macro calls (macro calling macro)', async () => {
+      /**
+       * Test iterative macro expansion
+       * 
+       * addTwo macro calls double(addOne(x)):
+       * - Iteration 1: addTwo(5) expands to double(addOne(5))
+       * - Iteration 2: addOne(5) expands to (5) + 1
+       * - Iteration 3: double((5) + 1) expands to ((5) + 1) * 2
+       * - Final result: 12
+       */
+      const { stdout, exitCode } = await runFunee(['macro/recursive_macro.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('12');  // ((5) + 1) * 2 = 12
+    });
+
+    it('prevents infinite macro recursion', async () => {
+      /**
+       * Test that infinite macro loops are caught
+       * 
+       * A macro that calls itself should trigger max_iterations
+       * and exit with a clear error message
+       */
+      const { stderr, exitCode } = await runFunee(['macro/infinite_macro.ts']);
+      
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain('Macro expansion exceeded max iterations');
+    });
+
+    it('emitted code does not contain macro definitions', async () => {
+      /**
+       * Macros run at compile time and should be removed from final bundle
+       * 
+       * The --emit output should:
+       * - Contain the expanded result: (5) + 1
+       * - NOT contain createMacro or addOne function
+       */
+      const { stdout, exitCode } = await runFuneeEmit(['macro/simple_macro.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('5) + 1');  // Expanded expression
+      expect(stdout).not.toContain('createMacro');  // Macro removed
+      expect(stdout).not.toContain('addOne');  // Macro function removed
+    });
   });
 
   describe('error handling', () => {

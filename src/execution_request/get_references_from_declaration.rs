@@ -17,6 +17,11 @@ pub fn get_references_from_declaration(
         Declaration::Expr(n) => get_references_from_ast(n, unresolved_mark),
         Declaration::VarInit(n) => get_references_from_ast(n, unresolved_mark),
         Declaration::Macro(n) => get_references_from_ast(n, unresolved_mark),
+        Declaration::ClosureValue(closure) => {
+            // Closure already has its references captured
+            // Return the reference names from the closure
+            closure.references.keys().cloned().collect()
+        }
         Declaration::FuneeIdentifier(_) => HashSet::new(),
         Declaration::HostFn(_) => HashSet::new(),
     }
@@ -38,7 +43,7 @@ impl Visit for ResolveReferences {
     }
 }
 
-fn get_references_from_ast<T: Clone + VisitMutWith<dyn VisitMut> + VisitWith<ResolveReferences>>(
+pub fn get_references_from_ast<T: Clone + VisitMutWith<dyn VisitMut> + VisitWith<ResolveReferences>>(
     ast: &mut T,
     unresolved_mark: (&Globals, Mark),
 ) -> HashSet<String> {
@@ -69,6 +74,12 @@ pub fn rename_references_in_declaration(
         Declaration::Expr(n) => rename_references_in_ast(n, to_replace, unresolved_mark),
         Declaration::VarInit(n) => rename_references_in_ast(n, to_replace, unresolved_mark),
         Declaration::Macro(n) => rename_references_in_ast(n, to_replace, unresolved_mark),
+        Declaration::ClosureValue(closure) => {
+            // Rename references in the closure expression
+            rename_references_in_ast(&mut closure.expression, to_replace.clone(), unresolved_mark);
+            // The closure's reference map doesn't need updating - it maps local names to canonical identifiers
+            // The AST transformation above already handles the renaming in the expression
+        }
         Declaration::FuneeIdentifier(_) => {}
         Declaration::HostFn(_) => {}
     };

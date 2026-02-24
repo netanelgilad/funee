@@ -1,5 +1,8 @@
 use super::{
-    declaration::Declaration, get_references_from_declaration::get_references_from_declaration,
+    capture_closure::capture_closure,
+    declaration::Declaration, 
+    detect_macro_calls::find_macro_calls,
+    get_references_from_declaration::get_references_from_declaration,
     load_module_declaration::load_declaration,
 };
 use crate::funee_identifier::FuneeIdentifier;
@@ -67,6 +70,8 @@ pub struct SourceGraph {
     pub root: NodeIndex,
     pub source_map: Rc<SourceMap>,
     pub references_mark: ReferencesMark,
+    /// Set of FuneeIdentifiers that are macro functions (created via createMacro)
+    pub macro_functions: HashSet<FuneeIdentifier>,
 }
 
 pub struct LoadParams {
@@ -86,6 +91,7 @@ impl SourceGraph {
         let unresolved_mark = GLOBALS.set(&globals, || Mark::new());
         let mut definitions_index = HashMap::new();
         let mut graph = Graph::new();
+        let mut macro_functions: HashSet<FuneeIdentifier> = HashSet::new();
         let root_node = graph.add_node((params.scope, Declaration::Expr(params.expression)));
         let mut dfs = Dfs::new(&graph, root_node);
         while let Some(nx) = dfs.next(&graph) {
@@ -176,6 +182,11 @@ impl SourceGraph {
                 };
 
                 if !definitions_index.contains_key(&reference.1) {
+                    // Track macro functions for later macro expansion
+                    if matches!(&declaration, Declaration::Macro(_)) {
+                        macro_functions.insert(reference.1.clone());
+                    }
+                    
                     let node_index = graph.add_node((resolved_uri, declaration));
                     graph.add_edge(nx, node_index, reference.0);
                     definitions_index.insert(reference.1, node_index);
@@ -191,7 +202,7 @@ impl SourceGraph {
             }
         }
 
-        Self {
+        let mut instance = Self {
             graph,
             source_map: cm,
             references_mark: ReferencesMark {
@@ -199,6 +210,96 @@ impl SourceGraph {
                 globals,
             },
             root: root_node,
+            macro_functions,
+        };
+
+        // Step 2: Process macro calls now that the graph is fully built
+        instance.process_macro_calls(&mut definitions_index, &mut dfs);
+
+        instance
+    }
+
+    /// Process macro calls in the graph after it's fully constructed
+    /// This needs to be a second pass because macros might be defined later in the module tree
+    fn process_macro_calls(
+        &mut self,
+        definitions_index: &mut HashMap<FuneeIdentifier, NodeIndex>,
+        dfs: &mut Dfs<NodeIndex, <petgraph::stable_graph::StableGraph<(String, Declaration), String> as petgraph::visit::Visitable>::Map>,
+    ) {
+        let globals = &self.references_mark.globals;
+        let unresolved_mark = self.references_mark.mark;
+
+        // Collect nodes to process (to avoid borrow issues)
+        let nodes_to_process: Vec<_> = self.graph.node_indices().collect();
+
+        for nx in nodes_to_process {
+            // Clone the data we need
+            let (source_uri, mut declaration_clone) = {
+                let (t, declaration) = &self.graph[nx];
+                (t.clone(), declaration.clone())
+            };
+
+            // Check if this declaration contains macro calls
+            let expr_to_check = match &declaration_clone {
+                Declaration::Expr(e) => Some(e.clone()),
+                Declaration::VarInit(e) => Some(e.clone()),
+                _ => None,
+            };
+
+            if let Some(expr) = expr_to_check {
+                // Build current scope references map
+                let current_scope_refs: HashMap<String, FuneeIdentifier> =
+                    get_references_from_declaration(&mut declaration_clone, (globals, unresolved_mark))
+                        .into_iter()
+                        .map(|name| {
+                            (
+                                name.clone(),
+                                FuneeIdentifier {
+                                    name: name.clone(),
+                                    uri: source_uri.clone(),
+                                },
+                            )
+                        })
+                        .collect();
+
+                // Find all macro calls in this expression
+                let macro_calls = find_macro_calls(&expr, &self.macro_functions, &current_scope_refs);
+
+                // For each macro call, capture its arguments as Closures
+                for macro_call in macro_calls {
+                    for (arg_idx, arg_expr) in macro_call.arguments.iter().enumerate() {
+                        // Capture this argument as a Closure
+                        let closure = capture_closure(
+                            arg_expr.clone(),
+                            &current_scope_refs,
+                            (globals, unresolved_mark),
+                        );
+
+                        // Create a unique name for this closure argument
+                        let closure_name = format!("{}_arg{}", macro_call.macro_name, arg_idx);
+                        let closure_identifier = FuneeIdentifier {
+                            name: closure_name.clone(),
+                            uri: source_uri.clone(),
+                        };
+
+                        // Add the Closure as a node in the graph
+                        if !definitions_index.contains_key(&closure_identifier) {
+                            let closure_node = self.graph.add_node((
+                                source_uri.clone(),
+                                Declaration::ClosureValue(closure),
+                            ));
+                            self.graph.add_edge(nx, closure_node, closure_name.clone());
+                            definitions_index.insert(closure_identifier, closure_node);
+
+                            // Add to DFS stack to process closure's references
+                            if !dfs.discovered.is_visited(&closure_node) {
+                                dfs.discovered.grow(self.graph.node_count());
+                                dfs.stack.push(closure_node);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
