@@ -128,6 +128,31 @@ describe('funee CLI', () => {
     });
   });
 
+  describe('private helpers', () => {
+    it('includes non-exported functions used by exported ones', async () => {
+      /**
+       * Tests that private helper functions (not exported) are included
+       * when they're used by exported functions
+       */
+      const { stdout, exitCode } = await runFunee(['private/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('private helper called');
+      expect(stdout).toContain('public function called');
+    });
+
+    it('tree-shakes unused private functions', async () => {
+      /**
+       * Private functions that aren't used should be excluded
+       */
+      const { stdout, exitCode } = await runFuneeEmit(['private/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('private helper called');
+      expect(stdout).not.toContain('unused private');
+    });
+  });
+
   describe('tree shaking', () => {
     it('only includes referenced declarations', async () => {
       /**
