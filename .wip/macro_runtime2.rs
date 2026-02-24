@@ -1,7 +1,7 @@
 // Macro execution runtime for bundle-time macro expansion
 // Executes macro functions with captured Closure arguments using deno_core
 
-use deno_core::{error::AnyError, op2, serde_json, FastString, JsRuntime, OpState, RuntimeOptions};
+use deno_core::{error::AnyError, serde_json, Extension, FastString, JsRuntime, PollEventLoopOptions, RuntimeOptions};
 use std::collections::HashMap;
 
 /// A closure = expression code + its out-of-scope references
@@ -17,28 +17,8 @@ pub struct MacroClosure {
 #[derive(Debug, Clone)]
 pub struct MacroResult {
     pub expression: String,
-    #[allow(dead_code)]
     pub references: HashMap<String, (String, String)>,
 }
-
-/// Internal state for capturing macro results
-struct MacroState {
-    result: Option<String>,
-}
-
-#[op2(fast)]
-fn op_set_macro_result(state: &mut OpState, #[string] result: &str) {
-    let macro_state = state.borrow_mut::<MacroState>();
-    macro_state.result = Some(result.to_string());
-}
-
-deno_core::extension!(
-    funee_macro_ext,
-    ops = [op_set_macro_result],
-    state = |state| {
-        state.put(MacroState { result: None });
-    }
-);
 
 pub struct MacroRuntime {
     runtime: JsRuntime,
@@ -46,8 +26,13 @@ pub struct MacroRuntime {
 
 impl MacroRuntime {
     pub fn new() -> Self {
+        let ext = Extension {
+            name: "funee_macros",
+            ..Default::default()
+        };
+
         let runtime = JsRuntime::new(RuntimeOptions {
-            extensions: vec![funee_macro_ext::init()],
+            extensions: vec![ext],
             ..Default::default()
         });
 
@@ -55,6 +40,13 @@ impl MacroRuntime {
     }
 
     /// Execute a macro function with arguments at bundle time
+    /// 
+    /// # Arguments
+    /// * `macro_fn_code` - The macro function as JS code (e.g., "(x) => { return { expression: ..., references: ... }; }")
+    /// * `args` - Vector of MacroClosures representing the macro arguments
+    /// 
+    /// # Returns
+    /// MacroResult containing the transformed closure
     pub fn execute_macro(
         &mut self,
         macro_fn_code: &str,
@@ -74,52 +66,51 @@ impl MacroRuntime {
                     .join(", ");
                 format!(
                     r#"{{ expression: `{}`, references: new Map([{}]) }}"#,
-                    arg.expression.replace('`', "\\`").replace('$', "\\$"),
+                    arg.expression.replace('`', "\\`"),
                     refs_entries
                 )
             })
             .collect::<Vec<_>>()
             .join(", ");
 
-        // Execute the macro and send result back via op
+        // Execute the macro and capture result
+        // We use a global variable to store the result since we can't easily
+        // extract values from deno_core without more complex v8 handling
         let code = format!(
             r#"
             const __macro_fn = {macro_fn_code};
             const __macro_args = [{args_code}];
             const __macro_result = __macro_fn(...__macro_args);
-            // Serialize and send result back to Rust
-            const __result_json = JSON.stringify({{
+            // Convert result to serializable format
+            globalThis.__funee_macro_result = JSON.stringify({{
                 expression: __macro_result.expression,
                 references: Object.fromEntries(__macro_result.references || new Map())
             }});
-            Deno.core.ops.op_set_macro_result(__result_json);
             "#
         );
 
         let js_code: FastString = code.into();
-        self.runtime
-            .execute_script("[funee:macro_exec]", js_code)?;
+        self.runtime.execute_script("[funee:macro_exec]", js_code)?;
 
-        // Get the result from state
-        let result_str = {
-            let state = self.runtime.op_state();
-            let mut state = state.borrow_mut();
-            let macro_state = state.borrow_mut::<MacroState>();
-            macro_state.result.take().ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "Macro did not produce a result")
-            })?
-        };
+        // Now extract the result by executing another script that returns it
+        let extract_code: FastString = "globalThis.__funee_macro_result".to_string().into();
+        let result_value = self.runtime.execute_script("[funee:get_result]", extract_code)?;
 
+        // Use the main scope to get the value
+        let scope = &mut self.runtime.main_context().open(&mut self.runtime);
+        let local = deno_core::v8::Local::new(scope, result_value);
+        
+        // Get the string value
+        let result_str = local.to_rust_string_lossy(scope);
+        
         // Parse the JSON result
         let parsed: serde_json::Value = serde_json::from_str(&result_str)?;
-
+        
         let expression = parsed["expression"]
             .as_str()
-            .ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "Macro result missing expression")
-            })?
+            .ok_or_else(|| deno_core::error::generic_error("Macro result missing expression"))?
             .to_string();
-
+            
         let mut references = HashMap::new();
         if let Some(refs_obj) = parsed["references"].as_object() {
             for (key, val) in refs_obj {
@@ -178,10 +169,7 @@ mod tests {
         "#;
 
         let mut refs = HashMap::new();
-        refs.insert(
-            "foo".to_string(),
-            ("./utils.ts".to_string(), "foo".to_string()),
-        );
+        refs.insert("foo".to_string(), ("./utils.ts".to_string(), "foo".to_string()));
 
         let arg = MacroClosure {
             expression: "foo(1)".to_string(),

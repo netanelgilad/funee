@@ -1,8 +1,13 @@
 // Macro execution runtime for bundle-time macro expansion
 // Executes macro functions with captured Closure arguments using deno_core
 
-use deno_core::{error::AnyError, op2, serde_json, FastString, JsRuntime, OpState, RuntimeOptions};
+use deno_core::{
+    error::AnyError, op2, serde_json, Extension, FastString, JsRuntime, OpState,
+    PollEventLoopOptions, RuntimeOptions,
+};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 /// A closure = expression code + its out-of-scope references
 #[derive(Debug, Clone)]
@@ -17,7 +22,6 @@ pub struct MacroClosure {
 #[derive(Debug, Clone)]
 pub struct MacroResult {
     pub expression: String,
-    #[allow(dead_code)]
     pub references: HashMap<String, (String, String)>,
 }
 
@@ -26,10 +30,12 @@ struct MacroState {
     result: Option<String>,
 }
 
-#[op2(fast)]
-fn op_set_macro_result(state: &mut OpState, #[string] result: &str) {
+#[op2]
+#[string]
+fn op_set_macro_result(state: &mut OpState, #[string] result: String) -> Result<(), AnyError> {
     let macro_state = state.borrow_mut::<MacroState>();
-    macro_state.result = Some(result.to_string());
+    macro_state.result = Some(result);
+    Ok(())
 }
 
 deno_core::extension!(
@@ -47,7 +53,7 @@ pub struct MacroRuntime {
 impl MacroRuntime {
     pub fn new() -> Self {
         let runtime = JsRuntime::new(RuntimeOptions {
-            extensions: vec![funee_macro_ext::init()],
+            extensions: vec![funee_macro_ext::init_ops()],
             ..Default::default()
         });
 
@@ -97,17 +103,17 @@ impl MacroRuntime {
         );
 
         let js_code: FastString = code.into();
-        self.runtime
-            .execute_script("[funee:macro_exec]", js_code)?;
+        self.runtime.execute_script("[funee:macro_exec]", js_code)?;
 
         // Get the result from state
         let result_str = {
             let state = self.runtime.op_state();
             let mut state = state.borrow_mut();
             let macro_state = state.borrow_mut::<MacroState>();
-            macro_state.result.take().ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "Macro did not produce a result")
-            })?
+            macro_state
+                .result
+                .take()
+                .ok_or_else(|| deno_core::error::type_error("Macro did not produce a result"))?
         };
 
         // Parse the JSON result
@@ -115,9 +121,7 @@ impl MacroRuntime {
 
         let expression = parsed["expression"]
             .as_str()
-            .ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "Macro result missing expression")
-            })?
+            .ok_or_else(|| deno_core::error::type_error("Macro result missing expression"))?
             .to_string();
 
         let mut references = HashMap::new();

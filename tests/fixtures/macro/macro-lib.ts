@@ -1,6 +1,6 @@
 // Closure type - represents captured AST + references
 export interface Closure<T> {
-  expression: any;  // The AST node
+  expression: any;  // The AST node or simple representation
   references: Map<string, CanonicalName>;
 }
 
@@ -23,21 +23,23 @@ export function createMacro<T, R>(
 export const closure = createMacro(<T>(input: Closure<T>): Closure<Closure<T>> => {
   // This runs at BUNDLE TIME, not runtime
   // `input` is already a Closure (the bundler captured the argument's AST)
+  // input.expression is the CODE STRING of the captured expression
   
-  // We return a Closure that, when emitted, constructs the input Closure
+  // Determine expression type from the code
+  const expr = input.expression.trim();
+  let exprType = "Expression";
+  if (expr.includes("=>")) exprType = "ArrowFunctionExpression";
+  else if (expr.startsWith("function")) exprType = "FunctionExpression";
+  
+  // Return code that constructs a Closure at runtime
+  // Inline the object construction to avoid needing Closure function
   return {
-    expression: {
-      type: "CallExpression",
-      callee: { type: "Identifier", name: "Closure" },
-      arguments: [/* AST to construct input */]
-    },
-    references: new Map([
-      ["Closure", { uri: "./macro-lib.ts", name: "Closure" }]
-    ])
+    expression: `({ expression: { type: "${exprType}" }, references: new Map() })`,
+    references: new Map()  // No external references needed
   };
 });
 
-// Runtime Closure constructor (used by emitted code)
+// Runtime Closure constructor (used by emitted code if needed)
 export function Closure<T>(data: { expression: any; references: any }): Closure<T> {
   return {
     expression: data.expression,

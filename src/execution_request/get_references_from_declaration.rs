@@ -28,7 +28,7 @@ pub fn get_references_from_declaration(
 }
 
 #[derive(Default)]
-struct ResolveReferences {
+pub(super) struct ResolveReferences {
     pub unresolved_mark: Mark,
     pub references: HashSet<String>,
 }

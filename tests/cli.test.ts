@@ -307,15 +307,16 @@ describe('funee CLI', () => {
     
     it('detects macro calls and captures arguments (Step 2)', async () => {
       /**
-       * Step 2 Test: Macro Argument Capture
+       * Step 2/3 Test: Macro Argument Capture and Execution
        * 
        * When closure(add) is encountered:
        * 1. Bundler detects 'closure' is a macro (via createMacro)
-       * 2. Argument 'add' is captured as Closure (not bundled normally)
-       * 3. Closure contains expression AST + references
+       * 2. Argument 'add' is captured as Closure
+       * 3. Macro is executed at bundle time
+       * 4. Result (the captured expression) is emitted
        * 
-       * For Step 2, we test using --emit to verify the captured argument
-       * appears in the bundled output (even though macro isn't executed yet).
+       * The test macro in step2_argument_capture.ts returns its input as-is,
+       * so addClosure should become the arrow function directly.
        */
       const { stdout, stderr, exitCode } = await runFuneeEmit(['macro/step2_argument_capture.ts']);
       
@@ -323,15 +324,14 @@ describe('funee CLI', () => {
       expect(exitCode).toBe(0);
       
       // The emitted code should show that:
-      // 1. The 'add' function is included (it's referenced by the Closure)
+      // 1. The macro was expanded - the result is the captured arrow function
       // Note: Declarations are renamed to declaration_N in the output
       expect(stdout).toMatch(/declaration_\d+\s*=\s*\(a,\s*b\)\s*=>\s*a\s*\+\s*b/);  // var declaration_N = (a, b) => a + b
       
-      // 2. The createMacro call should be included (macro not executed yet in Step 2)
-      // The macro reference 'closure' should be in the bundle
-      expect(stdout).toMatch(/declaration_\d+\s*=\s*\w+/);  // var declaration_N = closure_arg0
+      // 2. createMacro should NOT be in the output (macro definitions are stripped)
+      expect(stdout).not.toContain('createMacro');
       
-      // 3. Should not crash or error during capture
+      // 3. Should not crash or error during expansion
       expect(stderr).toBe('');
     });
 

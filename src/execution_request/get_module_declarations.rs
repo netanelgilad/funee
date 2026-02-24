@@ -16,6 +16,7 @@ pub fn get_module_declarations(module: Module) -> HashMap<String, ModuleDeclarat
 }
 
 pub struct ModuleDeclaration {
+    #[allow(dead_code)]
     pub exported: bool,
     pub declaration: Declaration,
 }
