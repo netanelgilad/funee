@@ -1,33 +1,48 @@
 # Funee Tasks
 
-## Architecture Decision
-**Functional-only ecosystem** - No class support. Functions + closures cover all use cases for the macro system.
+## 🎯 Ultimate Goal
+**Port the `everything` repo to funee** - same concepts as Opah but funee's implementation.
 
-## In Progress
-(none)
+## Phase 1: Core Macro System (CURRENT)
+- [ ] **Macro detection** - recognize `createMacro()` marked functions
+- [ ] **Closure capture** - when macro called, capture arg's AST + references
+- [ ] **Bundle-time execution** - run macro function during bundling
+- [ ] **Emit results** - output the transformed Closure's expression
 
-## Queued
-- [ ] Timer globals (setTimeout, setInterval) - requires deno timer ops
-- [ ] Improve error messages (file/line/column)
-- [ ] Namespace imports (`import * as utils from "./utils.ts"`)
+## Phase 2: HTTP Imports
+- [ ] `import { x } from "https://..."` support
+- [ ] Caching of remote modules
+- [ ] Integrity checking (optional)
+
+## Phase 3: Port `everything` Modules
+From ~/clawd/agents/riff/repos/everything/:
+- [ ] macros/ - Closure, createMacro, toAST, definition, canonicalName
+- [ ] functions/ - functional utilities
+- [ ] assertions/ - runtime assertions
+- [ ] collections/ - data structures
+- [ ] streams/ - async iterators (axax)
+- [ ] validator/ - validation utilities
+- [ ] filesystem/ - file operations
+- [ ] http/ - HTTP client
+- [ ] memoize/ - caching
+- [ ] refine/ - refinement types
 
 ## Done
-- [x] Import aliasing (`import { foo as bar }`)
-- [x] Global support (Promise, Object, Array, JSON, Math, etc.)
-- [x] Async function support
-- [x] Multiple host functions (`import { log, debug } from "funee"`)
-- [x] Non-exported declarations (private helper functions)
-- [x] Default export expressions (`export default () => {}`)
-- [x] Error handling tests (missing imports, parse errors)
-- [x] Aliased re-exports (`export { foo as bar }`)
-- [x] Variable declarations / arrow functions
-- [x] Re-exports through barrel files
-- [x] Deep import chains (A → B → C → D)
-- [x] Tree-shaking verification
-- [x] `--emit` flag for debugging
-- [x] Fix source_graph resolved URI bug
+- [x] Declaration-level bundling
+- [x] Tree-shaking
+- [x] Import chains & re-exports
+- [x] Arrow functions / VarInit
+- [x] Async functions
+- [x] Global support (Promise, Object, etc.)
+- [x] Multiple host functions
+- [x] --emit flag
 
-## Notes
-- **18 E2E tests passing**
-- Timer globals need deno timer ops
-- Functional-only = simpler bundler, cleaner macro transforms
+## Current Stats
+- **18 E2E tests passing** (+ 1 failing macro spec)
+- Functional-only architecture (no classes)
+
+## Subagent Tasks (overnight)
+Spawn subagents to parallelize work on:
+1. Macro system implementation
+2. HTTP imports
+3. Porting specific everything modules
