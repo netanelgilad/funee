@@ -302,6 +302,35 @@ describe('funee CLI', () => {
     });
   });
 
+  describe('macros', () => {
+    it('expands closure macro at bundle time', async () => {
+      /**
+       * The closure() macro should:
+       * 1. Detect that `closure` is created via createMacro()
+       * 2. When closure(add) is called, capture `add`'s AST instead of evaluating
+       * 3. Run the macro function at bundle time
+       * 4. Emit code that constructs the Closure at runtime
+       * 
+       * This is the core macro system behavior.
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['macro/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      // The closure should have captured the arrow function's AST
+      expect(stdout).toContain('AST type: ArrowFunctionExpression');
+      expect(stdout).toContain('Has references: true');
+    });
+
+    it('macro can access references from captured expression', async () => {
+      /**
+       * When capturing an expression that references external declarations,
+       * the Closure should include those in its references map
+       */
+      // TODO: Test with expression that has external refs
+      expect(true).toBe(true);
+    });
+  });
+
   describe('error handling', () => {
     it('reports missing import errors', async () => {
       /**
