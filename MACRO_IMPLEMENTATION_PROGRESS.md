@@ -46,88 +46,52 @@ Is now parsed as `Declaration::Macro(ArrowExpr)` - the bundler knows this is a c
 
 ---
 
-## 🔄 NEXT STEPS: Step 2 - Macro Call Detection
+## ✅ COMPLETED: Step 2 - Macro Call Detection & Argument Capture
 
-### Goal
-When a macro is called (e.g., `closure(add)`), we need to:
-1. Detect that `closure` is a macro (we can now do this!)
-2. NOT bundle the argument `add` normally
-3. Capture `add`'s AST as a Closure object
-4. Execute the macro function at bundle time
+### What Was Implemented
 
-### Implementation Plan
+See **STEP2_IMPLEMENTATION.md** for full details.
 
-#### 2.1 Detect Macro Calls in Source Graph
-**File:** `src/execution_request/source_graph.rs`
+1. **Added Closure type** (`src/execution_request/closure.rs`)
+   - `Closure` struct with `expression: Expr` and `references: HashMap<String, FuneeIdentifier>`
+   - Represents a captured expression with its out-of-scope references
 
-When building the dependency graph, we currently treat all call expressions the same. We need to:
-- Check if the callee of a CallExpr is a reference to a Macro declaration
-- If yes, handle it specially instead of following normal bundling flow
+2. **Added Declaration::ClosureValue variant** (`src/execution_request/declaration.rs`)
+   - New variant to represent captured closures
+   - Added to reference handling (`get_references_from_declaration.rs`)
+   - Emits as expression (TODO: emit proper Closure construction)
 
-**Pseudocode:**
-```rust
-// In SourceGraph::load or get_references_from_declaration
-match expr {
-    Expr::Call(call_expr) => {
-        // Check if callee is a macro
-        if is_macro_call(&call_expr, &definitions) {
-            // Special handling: capture argument AST
-            handle_macro_call(call_expr, definitions)
-        } else {
-            // Normal call - follow references
-            follow_normal_references(call_expr)
-        }
-    }
-}
+3. **Implemented macro call detection** (`src/execution_request/detect_macro_calls.rs`)
+   - `MacroCall` struct captures macro name and arguments
+   - `MacroCallFinder` visitor walks AST to find macro calls
+   - `find_macro_calls()` function detects calls where callee is a known macro
+
+4. **Implemented closure capture logic** (`src/execution_request/capture_closure.rs`)
+   - `capture_closure()` takes an expression and scope references
+   - Analyzes expression to find all variable references
+   - Filters to only out-of-scope references
+   - Returns `Closure` with expression + reference map
+
+5. **Two-pass graph construction** (`src/execution_request/source_graph.rs`)
+   - Pass 1: Build graph normally, track macro definitions
+   - Pass 2: `process_macro_calls()` finds macro calls and captures arguments
+   - For each macro call argument, creates a `ClosureValue` node in the graph
+
+### How It Works
+
+When code like `const addClosure = closure(add)` is processed:
+1. Graph construction identifies `closure` as a macro
+2. Second pass detects the call `closure(add)`
+3. Argument `add` is captured with `capture_closure()`
+4. Creates `Closure { expression: Ident("add"), references: {"add": ...} }`
+5. Adds a `ClosureValue` node to the graph
+
+### Test Results
 ```
-
-#### 2.2 Capture Argument AST
-**New module:** `src/execution_request/capture_closure.rs`
-
-Create a function that:
-- Takes an expression (the argument to the macro)
-- Extracts its AST
-- Finds all external references in the expression
-- Returns a Closure object: `{ expression: AST, references: Map }`
-
-**Signature:**
-```rust
-pub fn capture_closure(
-    expr: &Expr,
-    source_map: &SourceMap,
-    unresolved_mark: (&Globals, Mark)
-) -> ClosureValue {
-    // 1. Clone the AST of expr
-    // 2. Get references using get_references_from_ast
-    // 3. Build CanonicalName map for each reference
-    // 4. Return ClosureValue { expression: AST, references: Map }
-}
+✅ test_macro_call_argument_captured_as_closure - PASS
+✅ Closure correctly captures identifier and references
+✅ All 8 tests passing
 ```
-
-#### 2.3 Execute Macro at Bundle Time
-**File:** `src/execution_request/execute_macro.rs` (new)
-
-We need to:
-1. Take the macro function (from `Declaration::Macro`)
-2. Take the captured Closure value (from step 2.2)
-3. Execute the macro function with the Closure as input
-4. Get back a new Closure (the result)
-5. Emit code that constructs this result Closure at runtime
-
-**This is the hardest part** - we need to evaluate TypeScript/JavaScript at bundle time!
-
-Options:
-- Use Deno runtime to execute the macro function
-- Convert the macro function to a format we can evaluate
-- Use an embedded JS engine
-
-#### 2.4 Emit Closure Construction Code
-**File:** `src/execution_request/declaration.rs`
-
-Update `Declaration::Macro` handling in `into_module_item()`:
-- Instead of emitting the macro function
-- Emit code that constructs the Closure object
-- Example: `var addClosure = Closure({ expression: ..., references: ... })`
 
 ---
 
@@ -184,25 +148,79 @@ const outer = closure(inner);  // Macro result as input to another macro
 
 ---
 
+---
+
+## 🔄 NEXT STEPS: Step 3 - Macro Execution
+
+### Goal
+Execute macro functions at bundle time with captured Closures and transform the code.
+
+When a macro call like `closure(add)` is processed:
+1. Get the macro function from `Declaration::Macro`
+2. Get the captured `ClosureValue` arguments
+3. Execute the macro function (in JS runtime) with Closures as arguments
+4. Get back a transformed Closure result
+5. Replace the macro call expression with the result
+
+### Implementation Challenges
+
+1. **JS Execution at Bundle Time**
+   - Need to execute user's macro functions during Rust bundling
+   - Options:
+     - Embed deno_core runtime
+     - Use quickjs
+     - Two-pass bundling (bundle → execute → bundle)
+
+2. **AST Serialization**
+   - Need to pass Closure objects (Rust AST) to JS macro functions
+   - Need to receive transformed Closure results back
+   - Options:
+     - Serialize AST to JSON
+     - Emit to code string, parse in JS, emit back
+
+3. **Macro Result Integration**
+   - Replace macro call node with result expression
+   - Merge result's references into calling scope
+   - Handle reference conflicts (IIFE wrapping)
+
+### Test Plan
+
+```typescript
+// Simple identity macro
+const add = (a, b) => a + b;
+const addClosure = closure(add);
+// After macro execution: addClosure should be the Closure object
+// containing add's AST
+
+// Macro that transforms the expression
+const traced = trace((x) => x + 1);
+// After macro execution: traced should be transformed code
+// e.g., (x) => { console.log('calling'); return x + 1; }
+```
+
+---
+
 ## 📊 Current State
 
 - ✅ Macro declarations are detected
 - ✅ Bundler knows which functions are macros
-- ⏳ Macro calls are NOT yet detected
-- ⏳ Arguments are still bundled normally
-- ⏳ Macros are NOT executed at bundle time
-- ⏳ Closure objects are NOT constructed
+- ✅ Macro calls ARE detected
+- ✅ Arguments are captured as Closures (not bundled normally)
+- ⏳ Macros are NOT yet executed at bundle time
+- ⏳ Closure objects are emitted as plain expressions (need proper Closure construction)
+- ⏳ Macro transformations are not applied
 
 ---
 
-## 🎯 Immediate Next Action
+## 🎯 Next Milestone: Step 3
 
-**Focus on Step 2.1:** Detect macro calls in the source graph
+**Implement macro execution with embedded JS runtime**
 
-Start in `src/execution_request/source_graph.rs` or `get_references_from_declaration.rs`:
-1. Find where CallExpr is handled
-2. Add logic to check if the callee is a macro
-3. Add a marker or special handling for macro calls
-4. Write a test that verifies macro calls are detected
+Priority tasks:
+1. Set up deno_core or similar JS runtime for macro execution
+2. Implement AST serialization (Rust ↔ JS)
+3. Execute macro functions with Closure arguments
+4. Replace macro call sites with transformed results
+5. Handle reference conflicts and merging
 
-Once macro calls are detected, we can move to capturing AST (step 2.2).
+See DESIGN-MACROS.md for detailed design of macro execution phase.
