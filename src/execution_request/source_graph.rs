@@ -90,6 +90,7 @@ impl SourceGraph {
         let mut dfs = Dfs::new(&graph, root_node);
         while let Some(nx) = dfs.next(&graph) {
             let (t, declaration) = &mut graph[nx];
+            let source_uri = t.clone(); // Clone early for error messages
             let references = match declaration {
                 Declaration::FuneeIdentifier(identifier) => {
                     HashMap::from([(t.clone(), identifier.clone())])
@@ -133,13 +134,16 @@ impl SourceGraph {
                 } else {
                     let mut current_identifier = reference.1.clone();
                     loop {
+                        let err_source = source_uri.clone();
+                        let err_name = current_identifier.name.clone();
+                        let err_module = current_identifier.uri.clone();
                         let declaration = load_declaration(&cm, &current_identifier)
-                            .expect(
-                                &("Could not find declaration for ".to_owned()
-                                    + current_identifier.uri.as_str()
-                                    + ":"
-                                    + current_identifier.name.as_str()),
-                            )
+                            .unwrap_or_else(|| {
+                                eprintln!("error: Cannot find '{}' in module '{}'", 
+                                    err_name, err_module);
+                                eprintln!("  --> Referenced from: {}", err_source);
+                                std::process::exit(1);
+                            })
                             .declaration;
 
                         if let Declaration::FuneeIdentifier(i) = declaration {
