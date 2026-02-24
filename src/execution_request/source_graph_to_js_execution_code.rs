@@ -12,9 +12,12 @@ use petgraph::{
     Direction::Outgoing,
 };
 use std::collections::HashMap;
-use swc_ecma_ast::{CallExpr, Callee, Expr, Module, ModuleItem};
+use swc_common::{Mark, GLOBALS};
+use swc_ecma_ast::{CallExpr, Callee, Expr, Ident, Module, ModuleItem};
 use swc_ecma_codegen::{text_writer::JsWriter, Emitter};
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsSyntax};
+use swc_ecma_transforms_base::resolver;
+use swc_ecma_visit::VisitMutWith;
 
 impl SourceGraph {
     pub fn into_js_execution_code(mut self) -> String {
@@ -104,6 +107,21 @@ impl SourceGraph {
                                         &edge_targets,
                                         &mut runtime,
                                     ) {
+                                        // Add edges for identifiers in the result expression
+                                        // so they get renamed correctly during emission
+                                        let result_idents = self.extract_identifiers(&result_expr);
+                                        for ident_name in result_idents {
+                                            // Find if any node in the graph is referenced by this name
+                                            // Check all existing edges to find what this name resolves to
+                                            for ((_src, edge_name), tgt) in edge_targets.iter() {
+                                                if edge_name == &ident_name {
+                                                    // Found a node with this name - add edge from our node
+                                                    self.graph.add_edge(nx, *tgt, ident_name.clone());
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        
                                         // Replace the VarInit with the result
                                         self.graph[nx].1 = Declaration::VarInit(result_expr);
                                     }
@@ -175,6 +193,25 @@ impl SourceGraph {
                 None
             }
         }
+    }
+
+    /// Extract identifier names from an expression
+    fn extract_identifiers(&self, expr: &Expr) -> Vec<String> {
+        use swc_ecma_visit::{Visit, VisitWith};
+        
+        struct IdentCollector {
+            idents: Vec<String>,
+        }
+        
+        impl Visit for IdentCollector {
+            fn visit_ident(&mut self, ident: &swc_ecma_ast::Ident) {
+                self.idents.push(ident.sym.to_string());
+            }
+        }
+        
+        let mut collector = IdentCollector { idents: vec![] };
+        expr.visit_with(&mut collector);
+        collector.idents
     }
 
     /// Convert an expression AST to JavaScript code
