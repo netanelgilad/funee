@@ -1,10 +1,9 @@
 # Funee Tasks
 
 ## In Progress
-- [ ] Variable declarations / arrow functions (`export const add = () => ...`)
+- [ ] Aliased re-export test (use `{ helper as aliased }`)
 
 ## Queued
-- [ ] Aliased re-export test (use `{ helper as aliased }`)
 - [ ] Error handling: missing import errors with clear messages
 - [ ] Error handling: parse errors with file/line/column
 - [ ] Multiple host functions test (`import { log, fetch, readFile } from "funee"`)
@@ -13,6 +12,7 @@
 - [ ] Default export expressions (`export default () => {}`)
 
 ## Done
+- [x] Variable declarations / arrow functions (`export const add = () => ...`)
 - [x] Re-exports through barrel files
 - [x] Deep import chains (A → B → C → D)
 - [x] Tree-shaking verification

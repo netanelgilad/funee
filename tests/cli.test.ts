@@ -90,8 +90,11 @@ describe('funee CLI', () => {
        * Tests: export { helper as aliased } from "./impl.ts"
        * The original name should be used when loading the declaration
        */
-      // TODO: Create a fixture that uses the aliased export
-      expect(true).toBe(true);
+      const { stdout, stderr, exitCode } = await runFunee(['reexports/aliased-entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('helper called');
+      expect(stdout).toContain('aliased re-export works');
     });
   });
 
