@@ -1,8 +1,9 @@
 use crate::funee_identifier::FuneeIdentifier;
 use swc_common::SyntaxContext;
 use swc_ecma_ast::{
-    BlockStmt, CallExpr, Callee, ComputedPropName, Decl, Expr, ExprOrSpread, ExprStmt, FnDecl,
-    FnExpr, Ident, IdentName, Lit, MemberExpr, MemberProp, ModuleItem, Param, Pat, RestPat, ReturnStmt, Stmt,
+    BlockStmt, CallExpr, Callee, Decl, Expr, ExprOrSpread, ExprStmt, FnDecl,
+    FnExpr, Ident, IdentName, MemberExpr, MemberProp, ModuleItem, Param, Pat, RestPat, ReturnStmt, Stmt,
+    SpreadElement,
 };
 
 #[derive(Debug, Clone)]
@@ -42,71 +43,62 @@ impl Declaration {
                 expr: Box::new(fn_expr),
             }),
             Declaration::FuneeIdentifier(_) => unreachable!(),
-            Declaration::HostFn(op_name) => Stmt::Decl(Decl::Fn(FnDecl {
-                ident: ident(&name),
-                declare: Default::default(),
-                function: Box::new(swc_ecma_ast::Function {
-                    params: vec![Param {
-                        span: Default::default(),
-                        decorators: Default::default(),
-                        pat: Pat::Rest(RestPat {
+            Declaration::HostFn(op_name) => {
+                // Generate: function name(...args) { return Deno.core.ops.op_name(...args); }
+                Stmt::Decl(Decl::Fn(FnDecl {
+                    ident: ident(&name),
+                    declare: Default::default(),
+                    function: Box::new(swc_ecma_ast::Function {
+                        params: vec![Param {
                             span: Default::default(),
-                            dot3_token: Default::default(),
-                            arg: Box::new(Pat::Ident(
-                                ident("args").into(),
-                            )),
-                            type_ann: None,
-                        }),
-                    }],
-                    decorators: Default::default(),
-                    span: Default::default(),
-                    ctxt: SyntaxContext::empty(),
-                    body: Some(BlockStmt {
+                            decorators: Default::default(),
+                            pat: Pat::Rest(RestPat {
+                                span: Default::default(),
+                                dot3_token: Default::default(),
+                                arg: Box::new(Pat::Ident(ident("args").into())),
+                                type_ann: None,
+                            }),
+                        }],
+                        decorators: Default::default(),
                         span: Default::default(),
                         ctxt: SyntaxContext::empty(),
-                        stmts: vec![Stmt::Return(ReturnStmt {
+                        body: Some(BlockStmt {
                             span: Default::default(),
-                            arg: Some(Box::new(Expr::Call(CallExpr {
+                            ctxt: SyntaxContext::empty(),
+                            stmts: vec![Stmt::Return(ReturnStmt {
                                 span: Default::default(),
-                                ctxt: SyntaxContext::empty(),
-                                type_args: None,
-                                args: vec![
-                                    ExprOrSpread {
-                                        expr: Box::new(Expr::Lit(Lit::Str(
-                                            format!("op_{}", op_name).into(),
-                                        ))),
-                                        spread: None,
-                                    },
-                                    ExprOrSpread {
-                                        expr: Box::new(Expr::Member(MemberExpr {
-                                            span: Default::default(),
-                                            obj: Box::new(Expr::Ident(ident("args"))),
-                                            prop: MemberProp::Computed(ComputedPropName {
-                                                span: Default::default(),
-                                                expr: Box::new(Expr::Lit(Lit::Num(0.into()))),
-                                            }),
-                                        })),
-                                        spread: None,
-                                    },
-                                ],
-                                callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
+                                arg: Some(Box::new(Expr::Call(CallExpr {
                                     span: Default::default(),
-                                    prop: MemberProp::Ident(ident_name("opAsync")),
-                                    obj: Box::new(Expr::Member(MemberExpr {
+                                    ctxt: SyntaxContext::empty(),
+                                    type_args: None,
+                                    // Deno.core.ops.op_name(...args)
+                                    callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
                                         span: Default::default(),
-                                        prop: MemberProp::Ident(ident_name("core")),
-                                        obj: Box::new(Expr::Ident(ident("Deno"))),
-                                    })),
+                                        prop: MemberProp::Ident(ident_name(&format!("op_{}", op_name))),
+                                        obj: Box::new(Expr::Member(MemberExpr {
+                                            span: Default::default(),
+                                            prop: MemberProp::Ident(ident_name("ops")),
+                                            obj: Box::new(Expr::Member(MemberExpr {
+                                                span: Default::default(),
+                                                prop: MemberProp::Ident(ident_name("core")),
+                                                obj: Box::new(Expr::Ident(ident("Deno"))),
+                                            })),
+                                        })),
+                                    }))),
+                                    args: vec![ExprOrSpread {
+                                        spread: Some(Default::default()),
+                                        expr: Box::new(Expr::Ident(ident("args"))),
+                                    }],
                                 }))),
-                            }))),
-                        })],
+                            })],
+                        }),
+                        is_generator: false,
+                        is_async: false, // sync for now
+                        type_params: None,
+                        return_type: None,
                     }),
-                    is_generator: false,
-                    is_async: true,
-                    type_params: None,
-                    return_type: None,
-                }),
-            })),
+                }))
+            }
         })
     }
 }

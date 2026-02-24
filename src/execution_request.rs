@@ -16,10 +16,10 @@ use swc_ecma_ast as ast;
 use self::source_graph::{LoadParams, SourceGraph};
 
 pub struct ExecutionRequest {
-    expression: Expr,
-    scope: String,
-    host_functions: HashMap<FuneeIdentifier, OpDecl>,
-    file_loader: Box<dyn FileLoader + Sync + Send>,
+    pub expression: Expr,
+    pub scope: String,
+    pub host_functions: HashMap<FuneeIdentifier, OpDecl>,
+    pub file_loader: Box<dyn FileLoader + Sync + Send>,
 }
 
 impl Default for ExecutionRequest {
