@@ -6,6 +6,7 @@ mod get_inline_source_map;
 mod get_module_declarations;
 mod get_references_from_declaration;
 mod load_module_declaration;
+mod macro_runtime;
 mod source_graph;
 mod source_graph_to_js_execution_code;
 

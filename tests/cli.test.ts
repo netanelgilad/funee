@@ -410,6 +410,116 @@ describe('funee CLI', () => {
     });
   });
 
+  describe('funee standard library', () => {
+    it('imports Closure type from "funee"', async () => {
+      /**
+       * Tests that importing types from "funee" works:
+       * import { Closure } from "funee"
+       * 
+       * The bundler should recognize "funee" as the standard library
+       * and provide the Closure type
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/import-types.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('Closure type imported');
+    });
+
+    it('uses Closure constructor at runtime', async () => {
+      /**
+       * Tests that the Closure runtime constructor works:
+       * import { Closure } from "funee"
+       * const c = Closure({ expression: ..., references: {} })
+       * 
+       * Should construct a proper Closure object
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/closure-constructor.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('expression: test-ast-node');
+      expect(stdout).toContain('references size: 0');
+    });
+
+    it('imports log from "funee"', async () => {
+      /**
+       * Tests that host functions can be imported from "funee":
+       * import { log } from "funee"
+       * 
+       * This should work the same as before (backward compatibility)
+       */
+      const { stdout, exitCode } = await runFunee(['funee-lib/import-log.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('log from funee works');
+    });
+
+    it('imports multiple exports from "funee"', async () => {
+      /**
+       * Tests importing multiple things from "funee":
+       * import { Closure, CanonicalName, log } from "funee"
+       * 
+       * Should resolve all exports correctly
+       */
+      const { stdout, exitCode } = await runFunee(['funee-lib/multiple-imports.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('Closure imported');
+      expect(stdout).toContain('CanonicalName imported');
+      expect(stdout).toContain('log imported');
+    });
+
+    it('Closure constructor accepts plain object references', async () => {
+      /**
+       * Tests that Closure() converts plain objects to Maps:
+       * Closure({ expression: x, references: { foo: {...} } })
+       * 
+       * Should internally convert references object to Map
+       */
+      const { stdout, exitCode } = await runFunee(['funee-lib/closure-plain-refs.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('references is Map: true');
+      expect(stdout).toContain('reference count: 2');
+    });
+
+    it('Closure constructor accepts Map references', async () => {
+      /**
+       * Tests that Closure() accepts Map references directly:
+       * Closure({ expression: x, references: new Map([...]) })
+       */
+      const { stdout, exitCode } = await runFunee(['funee-lib/closure-map-refs.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('references is Map: true');
+      expect(stdout).toContain('reference count: 1');
+    });
+
+    it('imports createMacro from "funee"', async () => {
+      /**
+       * Tests that createMacro can be imported:
+       * import { createMacro } from "funee"
+       * 
+       * The function itself should be available (even though it throws at runtime)
+       */
+      const { stdout, exitCode } = await runFunee(['funee-lib/import-create-macro.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('createMacro is function: true');
+    });
+
+    it('createMacro throws at runtime if not expanded', async () => {
+      /**
+       * Tests safety check: if createMacro is somehow called at runtime
+       * (bundler didn't expand the macro), it should throw with clear message
+       */
+      const { stderr, exitCode } = await runFunee(['funee-lib/createMacro-throws.ts']);
+      
+      // Should fail because createMacro is called at runtime
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('createMacro was not expanded');
+    });
+  });
+
   describe('error handling', () => {
     it('reports missing import errors', async () => {
       /**
