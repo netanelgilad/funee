@@ -3,7 +3,7 @@ use swc_common::SyntaxContext;
 use swc_ecma_ast::{
     BlockStmt, CallExpr, Callee, Decl, Expr, ExprOrSpread, ExprStmt, FnDecl,
     FnExpr, Ident, IdentName, MemberExpr, MemberProp, ModuleItem, Param, Pat, RestPat, ReturnStmt, Stmt,
-    SpreadElement,
+    VarDecl, VarDeclKind, VarDeclarator,
 };
 
 #[derive(Debug, Clone)]
@@ -11,6 +11,8 @@ pub enum Declaration {
     Expr(Expr),
     FnExpr(FnExpr),
     FnDecl(FnDecl),
+    /// Variable declaration with initializer (e.g., `const add = () => ...`)
+    VarInit(Expr),
     FuneeIdentifier(FuneeIdentifier),
     HostFn(String),
 }
@@ -42,6 +44,21 @@ impl Declaration {
                 span: Default::default(),
                 expr: Box::new(fn_expr),
             }),
+            Declaration::VarInit(init_expr) => {
+                // Generate: var name = init_expr;
+                Stmt::Decl(Decl::Var(Box::new(VarDecl {
+                    span: Default::default(),
+                    ctxt: SyntaxContext::empty(),
+                    kind: VarDeclKind::Var,
+                    declare: false,
+                    decls: vec![VarDeclarator {
+                        span: Default::default(),
+                        name: Pat::Ident(ident(&name).into()),
+                        init: Some(Box::new(init_expr)),
+                        definite: false,
+                    }],
+                })))
+            }
             Declaration::FuneeIdentifier(_) => unreachable!(),
             Declaration::HostFn(op_name) => {
                 // Generate: function name(...args) { return Deno.core.ops.op_name(...args); }

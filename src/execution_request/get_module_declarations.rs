@@ -3,7 +3,7 @@ use crate::funee_identifier::FuneeIdentifier;
 use std::{collections::HashMap, path::Path};
 use swc_ecma_ast::{
     Decl, DefaultDecl, ExportSpecifier, ImportSpecifier, Module, ModuleDecl, ModuleExportName,
-    ModuleItem, Stmt,
+    ModuleItem, Pat, Stmt,
 };
 
 pub fn get_module_declarations(module: Module) -> HashMap<String, ModuleDeclaration> {
@@ -60,6 +60,24 @@ fn get_module_declarations_from_module_item(
                     declaration: Declaration::FnDecl(fn_decl),
                 },
             )],
+            Decl::Var(var_decl) => var_decl
+                .decls
+                .into_iter()
+                .filter_map(|declarator| {
+                    // Only handle simple identifier patterns with initializers
+                    if let (Pat::Ident(ident), Some(init)) = (declarator.name, declarator.init) {
+                        Some((
+                            atom_to_string(&ident.sym),
+                            ModuleDeclaration {
+                                exported: true,
+                                declaration: Declaration::VarInit(*init),
+                            },
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
             _ => vec![],
         },
         ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(decl)) => decl

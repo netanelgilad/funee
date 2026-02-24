@@ -15,6 +15,7 @@ pub fn get_references_from_declaration(
         Declaration::FnDecl(n) => get_references_from_ast(&mut n.function, unresolved_mark),
         Declaration::FnExpr(n) => get_references_from_ast(n, unresolved_mark),
         Declaration::Expr(n) => get_references_from_ast(n, unresolved_mark),
+        Declaration::VarInit(n) => get_references_from_ast(n, unresolved_mark),
         Declaration::FuneeIdentifier(_) => HashSet::new(),
         Declaration::HostFn(_) => HashSet::new(),
     }
@@ -65,6 +66,7 @@ pub fn rename_references_in_declaration(
         }
         Declaration::FnExpr(n) => rename_references_in_ast(n, to_replace, unresolved_mark),
         Declaration::Expr(n) => rename_references_in_ast(n, to_replace, unresolved_mark),
+        Declaration::VarInit(n) => rename_references_in_ast(n, to_replace, unresolved_mark),
         Declaration::FuneeIdentifier(_) => {}
         Declaration::HostFn(_) => {}
     };

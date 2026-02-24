@@ -152,6 +152,41 @@ describe('funee CLI', () => {
     });
   });
 
+  describe('variable declarations / arrow functions', () => {
+    it('supports exported const arrow functions', async () => {
+      /**
+       * Tests that funee handles:
+       * export const add = (a: number, b: number) => a + b;
+       * 
+       * This is a common pattern that requires VarDecl support
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['arrow/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('2 + 3 = 5');
+      expect(stdout).toContain('4 * 5 = 20');
+    });
+
+    it('tree-shakes unused arrow functions', async () => {
+      /**
+       * math.ts exports add, multiply, subtract but only add/multiply are used
+       * subtract should not appear in the bundle
+       * 
+       * Note: Declaration names are renamed to declaration_N in the output,
+       * so we check for the function body patterns instead
+       */
+      const { stdout, exitCode } = await runFuneeEmit(['arrow/entry.ts']);
+      
+      expect(exitCode).toBe(0);
+      // add: (a, b) => a + b - simple expression arrow
+      expect(stdout).toContain('a + b');
+      // multiply: (a, b) => { return a * b } - block arrow  
+      expect(stdout).toContain('a * b');
+      // subtract: (a, b) => a - b - should NOT be in output
+      expect(stdout).not.toContain('a - b');
+    });
+  });
+
   describe('error handling', () => {
     it('reports missing import errors', async () => {
       /**
