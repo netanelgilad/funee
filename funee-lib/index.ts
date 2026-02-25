@@ -43,11 +43,15 @@ export {
   randomBytes,
   httpFetch,
   // Filesystem host functions (low-level - use the wrappers in filesystem/ instead)
-  readFile,
-  writeFile,
-  isFile,
-  lstat,
-  readdir,
+  fsReadFile,
+  fsWriteFile,
+  fsIsFile,
+  fsLstat,
+  fsReaddir,
+  fsExists,
+  fsMkdir,
+  // OS host functions (low-level - use the wrappers in os/ instead)
+  tmpdir as tmpdirHost,
 } from "./host.ts";
 
 // ============================================================================
@@ -537,3 +541,47 @@ export {
   readdir,
   readdirRaw,
 } from "./filesystem/index.ts";
+
+// ============================================================================
+// GitHub - GitHub API Utilities
+// ============================================================================
+
+export type {
+  RepoIdentifier,
+  CreateReleaseOptions,
+  CreateReleaseResponse,
+} from "./github/index.ts";
+
+export { createRelease } from "./github/index.ts";
+
+// ============================================================================
+// npm - npm Registry Utilities
+// ============================================================================
+
+export type { NpmPublishOptions } from "./npm/index.ts";
+
+export { npmPublish } from "./npm/index.ts";
+
+// ============================================================================
+// OS - Operating System Utilities
+// ============================================================================
+
+export { tmpdir } from "./os/index.ts";
+
+// ============================================================================
+// Memoize - Persistent Caching Utilities
+// ============================================================================
+
+export { memoizeInFS } from "./memoize/index.ts";
+
+// ============================================================================
+// withCache - In-Memory Caching
+// ============================================================================
+
+export { withCache } from "./withCache.ts";
+
+// ============================================================================
+// Abstracts - Random Value Generation
+// ============================================================================
+
+export { someDirectory, someString } from "./abstracts/index.ts";

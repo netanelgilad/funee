@@ -967,6 +967,61 @@ describe('funee CLI', () => {
       // Clean up after test
       execSync('rm -rf /tmp/funee-fs-test');
     });
+
+    // ==================== GITHUB UTILITIES ====================
+
+    it('imports GitHub utilities from "funee"', async () => {
+      /**
+       * Tests the GitHub module imports from "funee":
+       * 
+       * import { createRelease } from "funee"
+       * import type { RepoIdentifier, CreateReleaseOptions, CreateReleaseResponse } from "funee"
+       * 
+       * - createRelease: function to create GitHub releases
+       * - RepoIdentifier: type for repo owner/name
+       * - CreateReleaseOptions: options for release creation
+       * - CreateReleaseResponse: response type from API
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/github-imports.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('createRelease is function: true');
+      expect(stdout).toContain('RepoIdentifier created: test/repo');
+      expect(stdout).toContain('CreateReleaseOptions created: v1.0.0');
+      expect(stdout).toContain('CreateReleaseResponse structure: id=123');
+      expect(stdout).toContain('github imports test complete');
+    });
+
+    // ==================== NPM UTILITIES ====================
+
+    it('imports npm utilities from "funee"', async () => {
+      /**
+       * Tests the npm module imports from "funee":
+       * 
+       * import { npmPublish } from "funee"
+       * import type { NpmPublishOptions } from "funee"
+       * 
+       * - npmPublish: function to publish packages to npm registry
+       * - NpmPublishOptions: options for package publishing
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/npm-imports.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('npmPublish is function: true');
+      expect(stdout).toContain('NpmPublishOptions created: test-package@1.0.0');
+      expect(stdout).toContain('Custom registry: https://npm.myorg.com');
+      expect(stdout).toContain('npm imports test complete');
+    });
   });
 
   describe('HTTP imports', () => {
