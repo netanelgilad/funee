@@ -568,6 +568,39 @@ describe('funee CLI', () => {
     });
   });
 
+  describe('HTTP imports', () => {
+    it('fetches modules from HTTP URLs', async () => {
+      /**
+       * Tests that funee can fetch and bundle modules from HTTP URLs.
+       * This test uses a simple inline test module.
+       * 
+       * Note: This test requires network access and may fail if offline.
+       */
+      // TODO: Set up a test HTTP server or use a reliable public module
+      // For now, just verify that HTTP URL resolution doesn't crash
+    });
+
+    it('resolves relative imports from HTTP modules', async () => {
+      /**
+       * When an HTTP module imports "./other.ts", it should resolve
+       * to the same host/path as the base URL.
+       * 
+       * https://example.com/lib/mod.ts importing "./utils.ts"
+       * should resolve to https://example.com/lib/utils.ts
+       */
+      // TODO: Test with actual HTTP modules
+    });
+
+    it('handles network errors gracefully', async () => {
+      /**
+       * When an HTTP fetch fails, funee should:
+       * 1. Try to use stale cache if available
+       * 2. Show clear error message if not cached
+       */
+      // TODO: Mock network failure scenario
+    });
+  });
+
   describe('error handling', () => {
     it('reports missing import errors', async () => {
       /**

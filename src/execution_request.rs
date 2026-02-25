@@ -10,11 +10,11 @@ mod macro_runtime;
 mod source_graph;
 mod source_graph_to_js_execution_code;
 
-use crate::{funee_identifier::FuneeIdentifier, run_js::run_js};
+use crate::{funee_identifier::FuneeIdentifier, http_loader::HttpFileLoader, run_js::run_js};
 use ast::Expr;
 use deno_core::{error::AnyError, OpDecl};
 use std::collections::HashMap;
-use swc_common::{source_map::RealFileLoader, FileLoader};
+use swc_common::FileLoader;
 use swc_ecma_ast as ast;
 
 use self::source_graph::{LoadParams, SourceGraph};
@@ -36,7 +36,7 @@ impl Default for ExecutionRequest {
             })),
             scope: "".to_string(),
             host_functions: HashMap::new(),
-            file_loader: Box::new(RealFileLoader),
+            file_loader: Box::new(HttpFileLoader::default()),
             funee_lib_path: None,
         }
     }

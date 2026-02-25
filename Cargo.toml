@@ -22,3 +22,11 @@ swc_atoms = "9"
 bytes-str = "0.2"
 relative-path = "1.9"
 tokio = { version = "1", features = ["full"] }
+
+# HTTP imports
+reqwest = { version = "0.12", features = ["blocking"] }
+url = "2.5"
+sha2 = "0.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "5.0"

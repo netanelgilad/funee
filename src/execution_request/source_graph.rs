@@ -21,6 +21,7 @@ use swc_common::{FileLoader, FilePathMapping, Globals, Mark, SourceMap, GLOBALS}
 use swc_ecma_ast::Expr;
 use swc_ecma_transforms_base::resolver;
 use swc_ecma_visit::VisitMutWith;
+use url::Url;
 
 /// JavaScript globals provided by the runtime - skip during bundling
 fn is_js_global(name: &str) -> bool {
@@ -60,6 +61,72 @@ fn is_js_global(name: &str) -> bool {
         | "atob" | "btoa"
         | "structuredClone"
     )
+}
+
+/// Check if a URI is an HTTP/HTTPS URL
+fn is_http_uri(uri: &str) -> bool {
+    uri.starts_with("http://") || uri.starts_with("https://")
+}
+
+/// Resolve an import URI against the current module's URI
+/// 
+/// Handles:
+/// - "funee" -> funee-lib path
+/// - HTTP URLs (absolute) -> used as-is
+/// - Relative paths from HTTP URLs -> resolved against base URL
+/// - Relative paths from file paths -> resolved against base path
+/// - Absolute paths -> used as-is
+fn resolve_import_uri(import_uri: &str, base_uri: &str, funee_lib_path: &Option<String>) -> String {
+    // Handle bare "funee" specifier
+    if import_uri == "funee" {
+        return funee_lib_path.clone().unwrap_or_else(|| {
+            eprintln!("error: Cannot resolve 'funee' - no funee_lib_path configured");
+            std::process::exit(1);
+        });
+    }
+
+    // If import is already an absolute HTTP URL, use it directly
+    if is_http_uri(import_uri) {
+        return import_uri.to_string();
+    }
+
+    // If import is already an absolute file path, use it directly
+    if import_uri.starts_with('/') {
+        return import_uri.to_string();
+    }
+
+    // Relative import - resolve against base
+    if is_http_uri(base_uri) {
+        // Base is HTTP URL - resolve relative URL
+        match Url::parse(base_uri) {
+            Ok(base_url) => {
+                match base_url.join(import_uri) {
+                    Ok(resolved) => resolved.to_string(),
+                    Err(e) => {
+                        eprintln!("error: Failed to resolve '{}' from '{}': {}", import_uri, base_uri, e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("error: Invalid base URL '{}': {}", base_uri, e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        // Base is file path - resolve relative path
+        let relative_path = RelativePath::new(import_uri);
+        let current_dir = Path::new(base_uri)
+            .parent()
+            .unwrap_or(Path::new(""))
+            .to_str()
+            .unwrap_or("");
+        relative_path
+            .to_logical_path(current_dir)
+            .to_str()
+            .unwrap_or(import_uri)
+            .to_string()
+    }
 }
 
 pub struct ReferencesMark {
@@ -174,25 +241,12 @@ impl SourceGraph {
                                     current_identifier.uri.clone(),
                                 );
                             }
-                            // Handle bare "funee" specifier specially
-                            let resolved_uri = if i.uri == "funee" {
-                                params.funee_lib_path.clone().unwrap_or_else(|| {
-                                    eprintln!("error: Cannot resolve 'funee' - no funee_lib_path configured");
-                                    std::process::exit(1);
-                                })
-                            } else {
-                                let relative_path = RelativePath::new(&i.uri);
-                                let current_dir = Path::new(&current_identifier.uri)
-                                    .parent()
-                                    .unwrap()
-                                    .to_str()
-                                    .unwrap();
-                                relative_path
-                                    .to_logical_path(&current_dir)
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string()
-                            };
+                            // Resolve the import URI
+                            let resolved_uri = resolve_import_uri(
+                                &i.uri, 
+                                &current_identifier.uri,
+                                &params.funee_lib_path
+                            );
                             current_identifier = FuneeIdentifier {
                                 name: i.name,
                                 uri: resolved_uri,
