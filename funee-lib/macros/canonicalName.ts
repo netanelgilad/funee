@@ -5,15 +5,8 @@
  * and returns code that constructs the CanonicalName at runtime.
  */
 
-import {
-  objectExpression,
-  objectProperty,
-  identifier,
-  stringLiteral,
-} from "../ast-types.ts";
 import type { Closure, CanonicalName } from "../core.ts";
 import { createMacro } from "../core.ts";
-import { isIdentifier, Identifier } from "../ast-types.ts";
 
 /**
  * Implementation of the canonicalName macro
@@ -22,21 +15,8 @@ import { isIdentifier, Identifier } from "../ast-types.ts";
  * @returns Closure that constructs the CanonicalName at runtime
  */
 export const canonicalNameFn = (node: Closure<any>): Closure<CanonicalName> => {
-  // The expression must be an identifier
-  const expr = node.expression;
-  
-  if (!isIdentifier(expr)) {
-    throw new Error(
-      `canonicalName macro expects an identifier, got: ${expr?.type || typeof expr}`
-    );
-  }
-  
-  // Get the identifier's name (SWC uses 'value', Babel uses 'name')
-  const reference = (expr as Identifier).value || (expr as any).name;
-  
-  if (!reference) {
-    throw new Error("canonicalName: could not extract identifier name");
-  }
+  // The expression should be an identifier (a variable name as string)
+  const reference = String(node.expression).trim();
   
   // Look up the canonical name from references
   const referenceCanonicalName = node.references.get(reference);
@@ -48,14 +28,11 @@ export const canonicalNameFn = (node: Closure<any>): Closure<CanonicalName> => {
     );
   }
   
-  // Build: { uri: "...", name: "..." }
-  const canonicalNameObject = objectExpression([
-    objectProperty(identifier("uri"), stringLiteral(referenceCanonicalName.uri)),
-    objectProperty(identifier("name"), stringLiteral(referenceCanonicalName.name)),
-  ]);
+  // Return code that creates a plain object with uri and name
+  const resultCode = `({ uri: ${JSON.stringify(referenceCanonicalName.uri)}, name: ${JSON.stringify(referenceCanonicalName.name)} })`;
 
   return {
-    expression: canonicalNameObject,
+    expression: resultCode,
     references: new Map(),
   };
 };

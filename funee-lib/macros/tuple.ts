@@ -5,7 +5,6 @@
  * a single closure containing an array of their expressions.
  */
 
-import { arrayExpression } from "../ast-types.ts";
 import type { Closure, CanonicalName } from "../core.ts";
 import { createMacro } from "../core.ts";
 
@@ -30,9 +29,8 @@ import { createMacro } from "../core.ts";
  */
 export const tuple = createMacro((...args: Closure<any>[]): Closure<any[]> => {
   // Combine all expressions into an array
-  const combinedExpression = arrayExpression(
-    args.map(arg => arg.expression)
-  );
+  const elements = args.map(arg => String(arg.expression));
+  const resultCode = `[${elements.join(", ")}]`;
   
   // Merge all references from all arguments
   const mergedReferences = new Map<string, CanonicalName>();
@@ -43,7 +41,7 @@ export const tuple = createMacro((...args: Closure<any>[]): Closure<any[]> => {
   }
   
   return {
-    expression: combinedExpression,
+    expression: resultCode,
     references: mergedReferences,
   };
 }) as <T extends any[]>(...args: { [K in keyof T]: T[K] }) => T;

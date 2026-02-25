@@ -1,7 +1,7 @@
 /**
  * unsafeDefined macro - Assert a value is defined without runtime check
  * 
- * This is a compile-time assertion that produces no runtime code.
+ * This is a compile-time assertion that produces no runtime code change.
  * Use when you're certain a value is not null/undefined but TypeScript can't prove it.
  */
 
@@ -23,8 +23,10 @@ import { createMacro } from "../core.ts";
  */
 export const unsafeDefined = createMacro(
   <T>(input: Closure<T | null | undefined>): Closure<T> => {
-    // Just pass through - no transformation needed
-    // The type system does the work
-    return input as Closure<T>;
+    // Just pass through the expression unchanged
+    return {
+      expression: String(input.expression),
+      references: input.references,
+    };
   }
 ) as <T>(value: T | null | undefined) => T;

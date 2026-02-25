@@ -5,19 +5,8 @@
  * This is useful for macros that need to inject new definitions.
  */
 
-import {
-  arrayExpression,
-  callExpression,
-  identifier,
-  objectExpression,
-  objectProperty,
-  stringLiteral,
-  variableDeclaration,
-  variableDeclarator,
-} from "../ast-types.ts";
 import type { Closure, CanonicalName } from "../core.ts";
 import { createMacro } from "../core.ts";
-import { toAST } from "./toAST.ts";
 
 /**
  * Definition type - A declaration paired with its references
@@ -27,7 +16,7 @@ import { toAST } from "./toAST.ts";
  */
 export interface Definition {
   /**
-   * The AST of the declaration (typically a VariableDeclaration)
+   * The AST-like representation of the declaration
    */
   declaration: any;
   
@@ -57,55 +46,27 @@ export const Definition = (data: {
  *   definition(x => x + 1)
  * 
  * Becomes:
- *   Definition({
- *     declaration: { type: "VariableDeclaration", declarations: [...] },
- *     references: new Map([...])
- *   })
- * 
- * @template T - The type of the captured expression
+ *   { declaration: { type: "VariableDeclaration", ... }, references: new Map([...]) }
  */
 export const definition = createMacro(<T>(nodeClosure: Closure<T>): Closure<Definition> => {
-  // Wrap the expression in: const anonymous = <expression>
-  const declaration = variableDeclaration("const", [
-    variableDeclarator(
-      identifier("anonymous"),
-      nodeClosure.expression
-    ),
-  ]);
+  const code = String(nodeClosure.expression).trim();
   
-  // Build the references array: [["name", {...}], ...]
-  const referencesArray = Array.from(nodeClosure.references.entries()).map(
-    ([localName, canonicalName]) => {
-      return arrayExpression([
-        stringLiteral(localName),
-        objectExpression([
-          objectProperty(identifier("uri"), stringLiteral(canonicalName.uri)),
-          objectProperty(identifier("name"), stringLiteral(canonicalName.name)),
-        ]),
-      ]);
-    }
+  // Build the references array entries as code
+  const refsEntries = Array.from(nodeClosure.references.entries()).map(
+    ([localName, canonicalName]) => 
+      `[${JSON.stringify(localName)}, { uri: ${JSON.stringify(canonicalName.uri)}, name: ${JSON.stringify(canonicalName.name)} }]`
   );
+  
+  const refsCode = refsEntries.length > 0 
+    ? `new Map([${refsEntries.join(", ")}])`
+    : "new Map()";
 
-  // Build: Definition({ declaration: ..., references: new Map([...]) })
-  const definitionCall = callExpression(identifier("Definition"), [
-    objectExpression([
-      objectProperty(identifier("declaration"), toAST(declaration)),
-      objectProperty(
-        identifier("references"),
-        callExpression(
-          identifier("Map"),
-          referencesArray.length > 0
-            ? [arrayExpression(referencesArray)]
-            : []
-        )
-      ),
-    ]),
-  ]);
+  // Return code that creates a Definition object
+  // The declaration wraps the expression in a const declaration
+  const resultCode = `({ declaration: { type: "VariableDeclaration", kind: "const", name: "anonymous", expression: ${JSON.stringify(code)} }, references: ${refsCode} })`;
 
   return {
-    expression: definitionCall,
-    references: new Map<string, CanonicalName>([
-      ["Definition", { uri: "funee", name: "Definition" }],
-    ]),
+    expression: resultCode,
+    references: new Map<string, CanonicalName>(),
   };
 });
