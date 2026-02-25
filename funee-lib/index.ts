@@ -333,6 +333,7 @@ export {
   not as notAssertion,  // Aliased to avoid conflict with functions/not
   both,
   AssertionError,
+  isAssertionError,
   assert,
   strictEqual,
   deepEqual,
