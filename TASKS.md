@@ -4,8 +4,6 @@
 **Port the `everything` repo to funee** - same concepts as Opah but funee's implementation.
 
 ## Phase 1: Core Macro System ✅ COMPLETE
-All E2E tests + 22 Rust unit tests passing!
-
 - [x] Macro detection (`createMacro()` pattern)
 - [x] Closure capture (expression + references)
 - [x] Macro execution via deno_core
@@ -34,9 +32,7 @@ All E2E tests + 22 Rust unit tests passing!
 - [x] Prevent infinite redirect loops
 - [x] Tree-shake HTTP modules (unused exports removed)
 - [x] CLI flag: `--reload` to bypass cache
-- [x] Test with real HTTP modules (esm.sh, deno.land)
 - [ ] Import maps support (future)
-- See: HTTP_IMPORTS_DESIGN.md
 
 ## Phase 4: Port `everything` Macros ✅ COMPLETE
 - [x] closure - captures expression as Closure<Closure<T>>
@@ -47,30 +43,35 @@ All E2E tests + 22 Rust unit tests passing!
 - [x] unsafeDefined - assert defined (pass-through)
 - [x] toAST / toCode - helpers for macro authors
 
-## Phase 5: Port Utility Libraries
-Start porting non-macro-dependent utilities:
-- [ ] functions/ - curry, not, etc.
-- [ ] collections/ - without, etc.
-- [ ] axax/ - async iterator library
-- [ ] refine/ - type refinement
-- [ ] assertions/ - assertThat, is, not, both
-- [ ] validator/ - scenario, runScenarios
+## Phase 5: Port Utility Libraries ✅ COMPLETE
+- [x] functions/ - curry, not
+- [x] collections/ - without
+- [x] axax/ - 16 async iterator utilities (with factory functions instead of classes)
+- [x] refine/ - type refinement (Refine, KeySet, ensure, encode)
+- [x] assertions/ - testing library (assertThat, is, not, both, otherwise)
+- [x] random/ - cryptoRandomString (with randomBytes host function)
+- [x] git/ - ref parsing (isGitRef, getNameOfRef)
 
-## Phase 6: I/O Libraries
+## Phase 6: I/O Libraries (Next)
 - [ ] filesystem/ - readFile, writeFile, etc.
 - [ ] streams/ - readStreamToString, etc.
 - [ ] http/ - httpRequest, httpGetJSON, etc.
+- [ ] validator/ - scenario, runScenarios (depends on assertions)
 
 ## Design Documents
 - `DESIGN-MACROS.md` - Full macro implementation plan
 - `HTTP_IMPORTS_DESIGN.md` - HTTP imports strategy
 - `PORTING_PLAN.md` - Porting everything repo strategy
-- `MACRO_IMPLEMENTATION_PROGRESS.md` - Step-by-step progress
 
 ## Current Stats (2026-02-25)
-- **59 E2E tests passing** ✅
+- **82 E2E tests passing** ✅
 - **22 Rust unit tests passing** ✅
-- Functional-only architecture (no classes)
+- Functional-only architecture (no classes - use factory functions)
 - Macro system fully operational
 - HTTP imports fully operational
-- All core macros ported from everything repo
+- All core macros and utility libraries ported
+
+## Bundler Limitations Discovered
+1. **Arrow functions only**: Use `export const fn = () => {}` not `export function fn() {}`
+2. **No classes**: Use factory functions (`createDeferred()` not `class Deferred`)
+3. **No Node.js APIs**: Use web-standard APIs or add host functions
