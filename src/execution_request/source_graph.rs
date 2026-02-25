@@ -74,8 +74,9 @@ fn is_http_uri(uri: &str) -> bool {
 /// - "funee" -> funee-lib path
 /// - HTTP URLs (absolute) -> used as-is
 /// - Relative paths from HTTP URLs -> resolved against base URL
+/// - Absolute paths (/) from HTTP URLs -> resolved against HTTP server root
 /// - Relative paths from file paths -> resolved against base path
-/// - Absolute paths -> used as-is
+/// - Absolute file paths -> used as-is
 fn resolve_import_uri(import_uri: &str, base_uri: &str, funee_lib_path: &Option<String>) -> String {
     // Handle bare "funee" specifier
     if import_uri == "funee" {
@@ -90,9 +91,31 @@ fn resolve_import_uri(import_uri: &str, base_uri: &str, funee_lib_path: &Option<
         return import_uri.to_string();
     }
 
-    // If import is already an absolute file path, use it directly
+    // If import starts with '/', behavior depends on base URI type
     if import_uri.starts_with('/') {
-        return import_uri.to_string();
+        if is_http_uri(base_uri) {
+            // Base is HTTP URL - resolve absolute path against server root
+            // e.g., "/lodash-es@4.17.21/add.mjs" from "https://esm.sh/lodash-es"
+            //       -> "https://esm.sh/lodash-es@4.17.21/add.mjs"
+            match Url::parse(base_uri) {
+                Ok(base_url) => {
+                    match base_url.join(import_uri) {
+                        Ok(resolved) => return resolved.to_string(),
+                        Err(e) => {
+                            eprintln!("error: Failed to resolve '{}' from '{}': {}", import_uri, base_uri, e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("error: Invalid base URL '{}': {}", base_uri, e);
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            // Base is file path - treat as filesystem absolute path
+            return import_uri.to_string();
+        }
     }
 
     // Relative import - resolve against base
@@ -377,5 +400,94 @@ impl SourceGraph {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_import_uri_absolute_path_from_http() {
+        // This is the esm.sh case: importing "/lodash-es@4.17.21/es2022/add.mjs"
+        // from "https://esm.sh/lodash-es@4.17.21/add"
+        let result = resolve_import_uri(
+            "/lodash-es@4.17.21/es2022/add.mjs",
+            "https://esm.sh/lodash-es@4.17.21/add",
+            &None,
+        );
+        assert_eq!(result, "https://esm.sh/lodash-es@4.17.21/es2022/add.mjs");
+    }
+
+    #[test]
+    fn test_resolve_import_uri_absolute_path_from_http_with_subdirectory() {
+        // Another case: absolute path from a module in a subdirectory
+        let result = resolve_import_uri(
+            "/lib/utils.ts",
+            "https://example.com/packages/my-lib/index.ts",
+            &None,
+        );
+        assert_eq!(result, "https://example.com/lib/utils.ts");
+    }
+
+    #[test]
+    fn test_resolve_import_uri_absolute_path_from_file_unchanged() {
+        // When base is a file path, absolute paths should remain absolute file paths
+        let result = resolve_import_uri(
+            "/usr/local/lib/module.ts",
+            "/home/user/project/main.ts",
+            &None,
+        );
+        assert_eq!(result, "/usr/local/lib/module.ts");
+    }
+
+    #[test]
+    fn test_resolve_import_uri_relative_path_from_http() {
+        let result = resolve_import_uri(
+            "./utils.ts",
+            "https://example.com/lib/mod.ts",
+            &None,
+        );
+        assert_eq!(result, "https://example.com/lib/utils.ts");
+    }
+
+    #[test]
+    fn test_resolve_import_uri_relative_parent_from_http() {
+        let result = resolve_import_uri(
+            "../other.ts",
+            "https://example.com/lib/nested/mod.ts",
+            &None,
+        );
+        assert_eq!(result, "https://example.com/lib/other.ts");
+    }
+
+    #[test]
+    fn test_resolve_import_uri_absolute_http_url_unchanged() {
+        let result = resolve_import_uri(
+            "https://cdn.example.com/lodash.js",
+            "https://esm.sh/lodash-es",
+            &None,
+        );
+        assert_eq!(result, "https://cdn.example.com/lodash.js");
+    }
+
+    #[test]
+    fn test_resolve_import_uri_funee_specifier() {
+        let result = resolve_import_uri(
+            "funee",
+            "/some/path/module.ts",
+            &Some("/path/to/funee-lib/index.ts".to_string()),
+        );
+        assert_eq!(result, "/path/to/funee-lib/index.ts");
+    }
+
+    #[test]
+    fn test_resolve_import_uri_relative_path_from_file() {
+        let result = resolve_import_uri(
+            "./utils.ts",
+            "/home/user/project/src/main.ts",
+            &None,
+        );
+        assert_eq!(result, "/home/user/project/src/utils.ts");
     }
 }

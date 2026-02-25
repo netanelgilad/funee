@@ -28,10 +28,11 @@ fn main() -> Result<(), AnyError> {
     let args: Vec<String> = env::args().collect();
     
     if args.len() < 2 {
-        eprintln!("Usage: funee [--emit] <file.ts>");
+        eprintln!("Usage: funee [--emit] [--reload] <file.ts>");
         eprintln!("");
         eprintln!("Options:");
         eprintln!("  --emit    Print bundled JavaScript instead of executing");
+        eprintln!("  --reload  Bypass HTTP cache and fetch fresh from network");
         eprintln!("");
         eprintln!("Runs the default export function from the given TypeScript file.");
         std::process::exit(1);
@@ -39,6 +40,7 @@ fn main() -> Result<(), AnyError> {
     
     // Parse args
     let emit_only = args.contains(&"--emit".to_string());
+    let force_reload = args.contains(&"--reload".to_string());
     let file_path = args.iter()
         .skip(1)
         .find(|arg| !arg.starts_with("--"))
@@ -116,7 +118,7 @@ fn main() -> Result<(), AnyError> {
         scope: absolute_path,
         host_functions,
         funee_lib_path,
-        ..Default::default()
+        file_loader: Box::new(http_loader::HttpFileLoader::with_force_reload(force_reload)?),
     };
     
     if emit_only {
