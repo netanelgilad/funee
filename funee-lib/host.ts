@@ -46,6 +46,25 @@ export declare function log(message: string): void;
 export declare function debug(message: string): void;
 
 /**
+ * randomBytes - Generate cryptographically secure random bytes
+ * 
+ * Returns a hex-encoded string of the specified number of random bytes.
+ * This is a host function that uses a secure random number generator.
+ * 
+ * @param length - The number of random bytes to generate
+ * @returns A hex-encoded string (2 * length characters)
+ * 
+ * @example
+ * ```typescript
+ * import { randomBytes } from "funee";
+ * 
+ * const hex = randomBytes(16);
+ * // => "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6" (32 hex chars = 16 bytes)
+ * ```
+ */
+export declare function randomBytes(length: number): string;
+
+/**
  * Note: Host functions are NOT implemented in TypeScript
  * 
  * These are just type declarations. The actual implementations

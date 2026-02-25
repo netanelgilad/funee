@@ -409,9 +409,10 @@ export type { GitRef } from "./git/index.ts";
 
 export {
   // Core utilities
-  Deferred,
-  Subject,
-  StopError,
+  createDeferred,
+  createSubject,
+  createStopError,
+  isStopError,
   toCallbacks,
   
   // Array conversions
@@ -440,6 +441,9 @@ export {
 } from "./axax/index.ts";
 
 export type {
+  Deferred,
+  Subject,
+  StopError,
   CollectLengthResult,
   StreamUntilLengthResult,
 } from "./axax/index.ts";

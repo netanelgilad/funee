@@ -682,9 +682,9 @@ describe('funee CLI', () => {
         expect(stdout).toContain('empty count: 0');
       });
 
-      it('Deferred creates a promise that can be resolved externally', async () => {
+      it('createDeferred creates a promise that can be resolved externally', async () => {
         /**
-         * Tests the Deferred class:
+         * Tests the createDeferred function:
          * - Creates a promise with externally accessible resolve/reject
          */
         const { stdout, exitCode } = await runFunee(['funee-lib/axax/deferred.ts']);
@@ -694,9 +694,9 @@ describe('funee CLI', () => {
         expect(stdout).toContain('caught: rejected!');
       });
 
-      it('Subject creates a push-based async iterable', async () => {
+      it('createSubject creates a push-based async iterable', async () => {
         /**
-         * Tests the Subject class:
+         * Tests the createSubject function:
          * - Allows pushing values to an async iterator from callbacks
          */
         const { stdout, exitCode } = await runFunee(['funee-lib/axax/subject.ts']);

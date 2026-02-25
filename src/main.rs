@@ -8,6 +8,7 @@ mod run_js;
 use deno_core::{error::AnyError, op2};
 use execution_request::ExecutionRequest;
 use funee_identifier::FuneeIdentifier;
+use rand::RngCore;
 use std::{collections::HashMap, env, path::Path};
 use swc_common::SyntaxContext;
 use swc_ecma_ast::{CallExpr, Callee, Expr, Ident};
@@ -22,6 +23,16 @@ fn op_log(#[string] message: &str) {
 #[op2(fast)]
 fn op_debug(#[string] message: &str) {
     println!("[DEBUG] {}", message);
+}
+
+/// Host function: generate cryptographically secure random bytes
+/// Returns a hex-encoded string of the requested number of bytes
+#[op2]
+#[string]
+fn op_randomBytes(length: u32) -> String {
+    let mut bytes = vec![0u8; length as usize];
+    rand::rng().fill_bytes(&mut bytes);
+    hex::encode(bytes)
 }
 
 fn main() -> Result<(), AnyError> {
@@ -82,6 +93,13 @@ fn main() -> Result<(), AnyError> {
                 uri: "funee".to_string(),
             },
             op_debug(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "randomBytes".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_randomBytes(),
         ),
     ]);
     
