@@ -4,7 +4,7 @@
 **Port the `everything` repo to funee** - same concepts as Opah but funee's implementation.
 
 ## Phase 1: Core Macro System ✅ COMPLETE
-All 35 E2E tests + 22 Rust unit tests passing!
+All E2E tests + 22 Rust unit tests passing!
 
 - [x] Macro detection (`createMacro()` pattern)
 - [x] Closure capture (expression + references)
@@ -20,6 +20,8 @@ All 35 E2E tests + 22 Rust unit tests passing!
 - [x] `createMacro()` marker function
 - [x] Host functions (log via Deno.core.ops)
 - [x] All imports from "funee" working
+- [x] AST types, predicates, and builders
+- [x] AST utilities (walkAST, cloneAST, replaceNodesByType, getOutOfScopeReferences)
 
 ## Phase 3: HTTP Imports ✅ COMPLETE
 - [x] Implement reqwest-based HTTP fetching
@@ -36,23 +38,39 @@ All 35 E2E tests + 22 Rust unit tests passing!
 - [ ] Import maps support (future)
 - See: HTTP_IMPORTS_DESIGN.md
 
-## Phase 4: Port `everything` Modules
-Now that HTTP imports work, start porting:
-- [ ] macros/ - closure, definition, toAST, etc.
+## Phase 4: Port `everything` Macros ✅ COMPLETE
+- [x] closure - captures expression as Closure<Closure<T>>
+- [x] canonicalName - gets CanonicalName for a reference
+- [x] definition - captures as Definition (declaration + refs)
+- [x] tuple - combines multiple closures
+- [x] unsafeCast - type assertion (pass-through)
+- [x] unsafeDefined - assert defined (pass-through)
+- [x] toAST / toCode - helpers for macro authors
+
+## Phase 5: Port Utility Libraries
+Start porting non-macro-dependent utilities:
 - [ ] functions/ - curry, not, etc.
-- [ ] collections/
-- [ ] streams/ (axax)
-- [ ] validator/
-- [ ] And more...
+- [ ] collections/ - without, etc.
+- [ ] axax/ - async iterator library
+- [ ] refine/ - type refinement
+- [ ] assertions/ - assertThat, is, not, both
+- [ ] validator/ - scenario, runScenarios
+
+## Phase 6: I/O Libraries
+- [ ] filesystem/ - readFile, writeFile, etc.
+- [ ] streams/ - readStreamToString, etc.
+- [ ] http/ - httpRequest, httpGetJSON, etc.
 
 ## Design Documents
 - `DESIGN-MACROS.md` - Full macro implementation plan
 - `HTTP_IMPORTS_DESIGN.md` - HTTP imports strategy
+- `PORTING_PLAN.md` - Porting everything repo strategy
 - `MACRO_IMPLEMENTATION_PROGRESS.md` - Step-by-step progress
 
 ## Current Stats (2026-02-25)
-- **58 E2E tests passing** ✅
+- **59 E2E tests passing** ✅
 - **22 Rust unit tests passing** ✅
 - Functional-only architecture (no classes)
 - Macro system fully operational
 - HTTP imports fully operational
+- All core macros ported from everything repo
