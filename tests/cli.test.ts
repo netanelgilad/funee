@@ -1230,12 +1230,14 @@ describe('funee CLI', () => {
       
       expect(exitCode).toBe(0);
       expect(stdout).toContain('test directory created: pass');
-      expect(stdout).toContain('file watcher created: pass');
-      expect(stdout).toContain('file watcher stopped: pass');
       expect(stdout).toContain('directory watcher created: pass');
       expect(stdout).toContain('directory watcher stopped: pass');
       expect(stdout).toContain('non-recursive watcher created: pass');
       expect(stdout).toContain('non-recursive watcher stopped: pass');
+      expect(stdout).toContain('file watcher created: pass');
+      expect(stdout).toContain('file watcher stopped: pass');
+      expect(stdout).toContain('multiple watchers created: pass');
+      expect(stdout).toContain('multiple watchers stopped: pass');
       expect(stdout).toContain('watcher test complete');
     });
   });

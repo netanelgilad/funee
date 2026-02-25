@@ -31,3 +31,8 @@ export declare function fsMkdir(path: string): string;
 
 // OS host functions
 export declare function tmpdir(): string;
+
+// Watcher host functions
+export declare function watchStart(path: string, recursive: boolean): string;
+export declare function watchPoll(watcherId: number): string;
+export declare function watchStop(watcherId: number): void;

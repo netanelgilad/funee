@@ -10,8 +10,9 @@ use deno_error::JsErrorBox;
 use execution_request::ExecutionRequest;
 use funee_identifier::FuneeIdentifier;
 use rand::RngCore;
-use serde::Serialize;
-use std::{collections::HashMap, env, fs, path::Path};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, env, fs, path::Path, sync::{Arc, Mutex, LazyLock}};
+use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher, EventKind};
 use swc_common::SyntaxContext;
 use swc_ecma_ast::{CallExpr, Callee, Expr, Ident};
 
@@ -265,6 +266,129 @@ fn op_httpFetch(
     Ok(result.to_string())
 }
 
+// ============================================================================
+// File Watcher Host Functions
+// ============================================================================
+
+/// Watch event for serialization to JS
+#[derive(Clone, Serialize, Deserialize)]
+struct WatchEvent {
+    kind: String,
+    path: String,
+}
+
+/// State for a single watcher instance
+struct WatcherState {
+    _watcher: RecommendedWatcher,
+    events: Arc<Mutex<Vec<WatchEvent>>>,
+}
+
+/// Global storage for active watchers
+static WATCHERS: LazyLock<Mutex<HashMap<u32, WatcherState>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static NEXT_WATCHER_ID: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+
+/// Convert notify EventKind to simple string
+fn event_kind_to_string(kind: &EventKind) -> &'static str {
+    match kind {
+        EventKind::Create(_) => "create",
+        EventKind::Modify(_) => "modify",
+        EventKind::Remove(_) => "remove",
+        EventKind::Access(_) => "access",
+        EventKind::Other => "other",
+        EventKind::Any => "any",
+    }
+}
+
+/// Host function: start watching a path
+/// Returns watcher ID or error JSON
+#[op2]
+#[string]
+fn op_watchStart(#[string] path: &str, recursive: bool) -> String {
+    // Get next watcher ID
+    let watcher_id = {
+        let mut id = NEXT_WATCHER_ID.lock().unwrap();
+        let current = *id;
+        *id += 1;
+        current
+    };
+    
+    // Create event queue
+    let events: Arc<Mutex<Vec<WatchEvent>>> = Arc::new(Mutex::new(Vec::new()));
+    let events_clone = events.clone();
+    
+    // Create watcher with callback
+    let watcher_result = RecommendedWatcher::new(
+        move |res: Result<notify::Event, notify::Error>| {
+            if let Ok(event) = res {
+                let kind = event_kind_to_string(&event.kind);
+                let mut queue = events_clone.lock().unwrap();
+                for path in event.paths {
+                    queue.push(WatchEvent {
+                        kind: kind.to_string(),
+                        path: path.to_string_lossy().to_string(),
+                    });
+                }
+            }
+        },
+        Config::default(),
+    );
+    
+    match watcher_result {
+        Ok(mut watcher) => {
+            let mode = if recursive { RecursiveMode::Recursive } else { RecursiveMode::NonRecursive };
+            if let Err(e) = watcher.watch(Path::new(path), mode) {
+                return serde_json::json!({
+                    "type": "error",
+                    "error": format!("Failed to watch path: {}", e)
+                }).to_string();
+            }
+            
+            // Store watcher state
+            let state = WatcherState {
+                _watcher: watcher,
+                events,
+            };
+            WATCHERS.lock().unwrap().insert(watcher_id, state);
+            
+            serde_json::json!({
+                "type": "ok",
+                "value": watcher_id
+            }).to_string()
+        }
+        Err(e) => {
+            serde_json::json!({
+                "type": "error",
+                "error": format!("Failed to create watcher: {}", e)
+            }).to_string()
+        }
+    }
+}
+
+/// Host function: poll for pending events
+/// Returns JSON array of events or null if none
+#[op2]
+#[string]
+fn op_watchPoll(watcher_id: u32) -> String {
+    let watchers = WATCHERS.lock().unwrap();
+    if let Some(state) = watchers.get(&watcher_id) {
+        let mut events = state.events.lock().unwrap();
+        if events.is_empty() {
+            "null".to_string()
+        } else {
+            let drained: Vec<WatchEvent> = events.drain(..).collect();
+            serde_json::to_string(&drained).unwrap_or_else(|_| "[]".to_string())
+        }
+    } else {
+        "null".to_string()
+    }
+}
+
+/// Host function: stop watching and cleanup
+#[op2(fast)]
+fn op_watchStop(watcher_id: u32) {
+    WATCHERS.lock().unwrap().remove(&watcher_id);
+}
+
 fn main() -> Result<(), AnyError> {
     let args: Vec<String> = env::args().collect();
     
@@ -410,6 +534,28 @@ fn main() -> Result<(), AnyError> {
                 uri: "funee".to_string(),
             },
             op_fsMkdir(),
+        ),
+        // Watcher host functions
+        (
+            FuneeIdentifier {
+                name: "watchStart".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_watchStart(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "watchPoll".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_watchPoll(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "watchStop".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_watchStop(),
         ),
     ]);
     
