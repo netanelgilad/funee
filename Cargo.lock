@@ -693,6 +693,7 @@ dependencies = [
  "base64",
  "bytes-str",
  "deno_core",
+ "deno_error",
  "dirs",
  "hex",
  "petgraph",

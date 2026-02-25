@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 base64 = "0.22"
 deno_core = "0.386"
+deno_error = "0.7"
 petgraph = "0.6"
 sourcemap = "9"
 swc_common = { version = "18", features = ["sourcemap"] }

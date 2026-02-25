@@ -919,6 +919,54 @@ describe('funee CLI', () => {
       expect(stdout).toContain('isGitRef remotes: pass');
       expect(stdout).toContain('git ref test complete');
     });
+
+    // ==================== FILESYSTEM UTILITIES ====================
+
+    it('filesystem operations read, write, and stat files', async () => {
+      /**
+       * Tests the filesystem utilities from "funee":
+       * 
+       * import { readFile, writeFile, isFile, lstat, readdir, join } from "funee"
+       * 
+       * - writeFile: writes content to a file
+       * - readFile: reads file content
+       * - isFile: checks if path is a file
+       * - lstat: gets file stats (size, is_file, is_directory, etc.)
+       * - readdir: lists directory contents
+       * - join: joins path segments
+       */
+      // Clean up test directory before running
+      const { execSync } = await import('child_process');
+      execSync('rm -rf /tmp/funee-fs-test && mkdir -p /tmp/funee-fs-test');
+      
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/filesystem.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('writeFile: pass');
+      expect(stdout).toContain('readFile: pass');
+      expect(stdout).toContain('isFile on file: pass');
+      expect(stdout).toContain('isFile on dir: pass');
+      expect(stdout).toContain('lstat size: pass');
+      expect(stdout).toContain('lstat is_file: pass');
+      expect(stdout).toContain('lstat is_directory: pass');
+      expect(stdout).toContain('lstat has modified_ms: pass');
+      expect(stdout).toContain('lstat dir is_directory: pass');
+      expect(stdout).toContain('lstat dir is_file: pass');
+      expect(stdout).toContain('readdir contains test.txt: pass');
+      expect(stdout).toContain('readdir returns array: pass');
+      expect(stdout).toContain('join: pass');
+      expect(stdout).toContain('readFile nonexistent: pass');
+      expect(stdout).toContain('readdir nonexistent: pass');
+      expect(stdout).toContain('filesystem test complete');
+      
+      // Clean up after test
+      execSync('rm -rf /tmp/funee-fs-test');
+    });
   });
 
   describe('HTTP imports', () => {

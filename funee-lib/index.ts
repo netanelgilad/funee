@@ -40,7 +40,14 @@ export type {
 export {
   log,
   debug,
-  randomBytes
+  randomBytes,
+  httpFetch,
+  // Filesystem host functions (low-level - use the wrappers in filesystem/ instead)
+  readFile,
+  writeFile,
+  isFile,
+  lstat,
+  readdir,
 } from "./host.ts";
 
 // ============================================================================
@@ -471,7 +478,6 @@ export {
   isHostname,
   isURL,
   targetToURL,
-  httpFetch,
   parseHttpResponse,
   httpRequest,
   httpGetJSON,
