@@ -717,6 +717,83 @@ describe('funee CLI', () => {
       });
     });
 
+    // ==================== STREAMS - ASYNC ITERABLE STREAM UTILITIES ====================
+
+    describe('streams', () => {
+      it('toString collects async iterable chunks into a string', async () => {
+        /**
+         * Tests the toString function:
+         * - Collects string chunks into a single string
+         * - Works with fromString for roundtrip
+         * - Handles empty iterables
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/streams/toString.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('string chunks: hello world');
+        expect(stdout).toContain('roundtrip: roundtrip test');
+        expect(stdout).toContain('empty: ""');
+      });
+
+      it('toBuffer collects async iterable chunks into a Buffer', async () => {
+        /**
+         * Tests the toBuffer function:
+         * - Collects Uint8Array chunks into a single Buffer
+         * - Works with fromBuffer for roundtrip
+         * - Handles empty iterables
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/streams/toBuffer.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('collected: 1,2,3,4,5,6');
+        expect(stdout).toContain('roundtrip: 10,20,30');
+        expect(stdout).toContain('empty length: 0');
+      });
+
+      it('fromString creates async iterable from string', async () => {
+        /**
+         * Tests the fromString function:
+         * - Creates async iterable that yields the string
+         * - Works with toString for roundtrip
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/streams/fromString.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('chunk: hello');
+        expect(stdout).toContain('count: 1');
+        expect(stdout).toContain('roundtrip: test string');
+      });
+
+      it('empty creates an async iterable that yields nothing', async () => {
+        /**
+         * Tests the empty function:
+         * - Creates async iterable that completes immediately
+         * - Works with toArray, toString, toBuffer
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/streams/empty.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('array length: 0');
+        expect(stdout).toContain('string: ""');
+        expect(stdout).toContain('buffer length: 0');
+      });
+
+      it('fromBuffer creates async iterable from Uint8Array', async () => {
+        /**
+         * Tests the fromBuffer function:
+         * - Creates async iterable that yields the buffer
+         * - Works with toBuffer for roundtrip
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/streams/fromBuffer.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('chunk length: 5');
+        expect(stdout).toContain('chunk data: 1,2,3,4,5');
+        expect(stdout).toContain('count: 1');
+        expect(stdout).toContain('roundtrip: 10,20,30');
+      });
+    });
+
     it('closure macro from funee-lib captures expression as Closure', async () => {
       /**
        * Tests the closure macro imported from "funee"
@@ -1862,5 +1939,125 @@ describe('funee CLI', () => {
       // Should indicate a parse/syntax error occurred
       expect(stderr).toMatch(/parse|error|expected/i);
     });
+  });
+
+  describe('validator module', () => {
+    it('runs basic scenarios with assertions', async () => {
+      /**
+       * Tests the scenario/runScenarios pattern for test organization.
+       * - Scenarios have descriptions and verify functions
+       * - All passing scenarios are logged with ✅
+       * - Results are returned for programmatic checks
+       */
+      const { stdout, exitCode } = await runFunee(['validator-basic.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('addition works correctly');
+      expect(stdout).toContain('string concatenation works');
+      expect(stdout).toContain('✅');
+      expect(stdout).toContain('All scenarios passed: true');
+    });
+
+    it('runs only focused scenarios when focus is set', async () => {
+      /**
+       * When a scenario has focus: true, only focused scenarios run.
+       * This is useful during development to run specific tests.
+       */
+      const { stdout, exitCode } = await runFunee(['validator-focused.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('FOCUSED_SCENARIO_RAN');
+      expect(stdout).toContain('Scenarios run: 1');
+      expect(stdout).toContain('Focus test passed!');
+      // Non-focused scenarios should NOT have run
+      expect(stdout).not.toContain('SHOULD_NOT_SEE_THIS');
+      expect(stdout).not.toContain('SHOULD_NOT_SEE_THIS_EITHER');
+    });
+
+    it('handles scenario failures gracefully', async () => {
+      /**
+       * Failed scenarios:
+       * - Are logged with ❌
+       * - Don't stop other scenarios from running
+       * - Are tracked in results
+       */
+      const { stdout, exitCode } = await runFunee(['validator-failure.ts']);
+      
+      expect(exitCode).toBe(0); // The test runner itself succeeds
+      expect(stdout).toContain('✅'); // Passing scenarios
+      expect(stdout).toContain('❌'); // The failing scenario
+      expect(stdout).toContain('Passed: 2');
+      expect(stdout).toContain('Failed: 1');
+      expect(stdout).toContain('Failure handling test passed!');
+    });
+  });
+
+  describe('HTTP module', () => {
+    it('httpGetJSON fetches JSON data from a URL', async () => {
+      /**
+       * Tests the httpGetJSON function:
+       * - Makes GET request to httpbin.org/get
+       * - Parses JSON response
+       * - Returns typed data
+       */
+      const { stdout, exitCode } = await runFunee(['http-get-json.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('url: https://httpbin.org/get');
+      expect(stdout).toContain('headers received: yes');
+    }, 30000); // 30s timeout for network request
+
+    it('httpPostJSON sends JSON data to a URL', async () => {
+      /**
+       * Tests the httpPostJSON function:
+       * - Makes POST request to httpbin.org/post
+       * - Sends JSON body
+       * - Receives echoed data
+       */
+      const { stdout, exitCode } = await runFunee(['http-post-json.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('url: https://httpbin.org/post');
+      expect(stdout).toContain('data echoed: bar');
+    }, 30000);
+
+    it('getBody fetches raw body as string', async () => {
+      /**
+       * Tests the getBody function:
+       * - Fetches httpbin.org/robots.txt
+       * - Returns body as string
+       */
+      const { stdout, exitCode } = await runFunee(['http-get-body.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('got body: yes');
+      expect(stdout).toContain('contains User-agent: yes');
+    }, 30000);
+
+    it('httpRequest sends custom headers', async () => {
+      /**
+       * Tests the httpRequest function:
+       * - Sends custom X-Custom-Header
+       * - Verifies it was received by the server
+       */
+      const { stdout, exitCode } = await runFunee(['http-request.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('status: 200');
+      expect(stdout).toContain('custom header received: yes');
+    }, 30000);
+
+    it('supports HostAndPathTarget with query params', async () => {
+      /**
+       * Tests the HostAndPathTarget variant:
+       * - Builds URL from host/path/search
+       * - Query params are included in request
+       */
+      const { stdout, exitCode } = await runFunee(['http-target-host.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('url: https://httpbin.org/get?foo=bar');
+      expect(stdout).toContain('has query: yes');
+    }, 30000);
   });
 });

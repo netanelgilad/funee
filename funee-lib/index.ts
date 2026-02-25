@@ -448,3 +448,55 @@ export type {
   CollectLengthResult,
   StreamUntilLengthResult,
 } from "./axax/index.ts";
+
+// ============================================================================
+// HTTP - HTTP Client Utilities
+// ============================================================================
+
+export type {
+  Hostname,
+  URLString,
+  URLTarget,
+  HostAndPathTarget,
+  HttpTarget,
+  HttpResponse,
+  HttpMethod,
+  HttpRequestOptions,
+  HttpGetJSONOptions,
+  HttpPostJSONOptions,
+  GetBodyOptions,
+} from "./http/index.ts";
+
+export {
+  isHostname,
+  isURL,
+  targetToURL,
+  httpFetch,
+  parseHttpResponse,
+  httpRequest,
+  httpGetJSON,
+  httpPostJSON,
+  getBody,
+} from "./http/index.ts";
+
+// ============================================================================
+// Stream Utilities
+// ============================================================================
+
+export {
+  // Converters - collect async iterables into values
+  toBuffer,
+  toString,
+  
+  // Sources - create async iterables from values
+  fromString,
+  fromBuffer,
+  empty,
+} from "./streams/index.ts";
+
+// ============================================================================
+// Validator - Test Scenario Execution
+// ============================================================================
+
+export type { Scenario, ScenarioResult, RunScenariosOptions, ScenarioLogger } from "./validator/index.ts";
+export { scenario, runScenarios } from "./validator/index.ts";
