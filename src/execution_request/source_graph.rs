@@ -19,6 +19,8 @@ use std::{
 };
 use swc_common::{FileLoader, FilePathMapping, Globals, Mark, SourceMap, GLOBALS};
 use swc_ecma_ast::Expr;
+use swc_ecma_transforms_base::resolver;
+use swc_ecma_visit::VisitMutWith;
 
 /// JavaScript globals provided by the runtime - skip during bundling
 fn is_js_global(name: &str) -> bool {
@@ -91,10 +93,19 @@ impl SourceGraph {
             FilePathMapping::empty(),
         ));
         let unresolved_mark = GLOBALS.set(&globals, || Mark::new());
+        
+        // Resolve the root expression so its identifiers get the unresolved_mark
+        // This is necessary because the expression comes in unresolved from main.rs
+        let mut root_expr = params.expression;
+        GLOBALS.set(&globals, || {
+            let resolver_pass = &mut resolver(unresolved_mark, Mark::new(), true);
+            root_expr.visit_mut_with(resolver_pass);
+        });
+        
         let mut definitions_index = HashMap::new();
         let mut graph = Graph::new();
         let mut macro_functions: HashSet<FuneeIdentifier> = HashSet::new();
-        let root_node = graph.add_node((params.scope, Declaration::Expr(params.expression)));
+        let root_node = graph.add_node((params.scope, Declaration::Expr(root_expr)));
         let mut dfs = Dfs::new(&graph, root_node);
         while let Some(nx) = dfs.next(&graph) {
             let (t, declaration) = &mut graph[nx];

@@ -4,7 +4,7 @@ use swc_common::{Globals, Mark, GLOBALS};
 use swc_ecma_ast::Ident;
 use swc_ecma_transforms_base::resolver;
 use swc_ecma_visit::{
-    self, noop_visit_mut_type, noop_visit_type, Visit, VisitMut, VisitMutWith, VisitWith,
+    noop_visit_mut_type, noop_visit_type, Visit, VisitMut, VisitMutWith, VisitWith,
 };
 
 pub fn get_references_from_declaration(

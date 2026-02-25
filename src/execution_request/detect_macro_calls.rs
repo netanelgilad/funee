@@ -1,6 +1,7 @@
 use crate::funee_identifier::FuneeIdentifier;
 use std::collections::{HashMap, HashSet};
-use swc_ecma_ast::{CallExpr, Callee, Expr, Ident};
+#[cfg_attr(not(test), allow(unused_imports))]
+use swc_ecma_ast::{CallExpr, Callee, Expr, ExprOrSpread, Ident};
 use swc_ecma_visit::{noop_visit_type, Visit, VisitWith};
 
 /// Information about a macro call found in an expression

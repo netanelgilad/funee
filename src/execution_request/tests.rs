@@ -86,6 +86,7 @@ fn it_works() {
                 ),
             ]),
         }),
+        funee_lib_path: None,
     };
     assert_eq!(request.execute().unwrap(), ());
 }
@@ -199,6 +200,7 @@ export const closure = createMacro(<T>(input: T) => {
             args: vec![],
         }),
         host_functions: HashSet::new(),
+        funee_lib_path: None,
         file_loader,
     });
 
@@ -265,6 +267,7 @@ export const closure = createMacro(<T>(input: T) => {
             args: vec![],
         }),
         host_functions: HashSet::new(),
+        funee_lib_path: None,
         file_loader,
     });
 
