@@ -39,7 +39,8 @@ export type {
 // Host functions provided by the runtime
 export {
   log,
-  debug
+  debug,
+  randomBytes
 } from "./host.ts";
 
 // ============================================================================
@@ -311,6 +312,40 @@ export {
 export type { ASTVisitor } from "./ast-utils.ts";
 
 // ============================================================================
+// Assertions - Testing library
+// ============================================================================
+
+export type {
+  Assertion,
+  Otherwise,
+  Within,
+  OtherwiseCallback,
+} from "./assertions/index.ts";
+
+export {
+  assertion,
+  otherwise,
+  within,
+  isOtherwise,
+  isWithin,
+  assertThat,
+  is,
+  not as notAssertion,  // Aliased to avoid conflict with functions/not
+  both,
+  AssertionError,
+  assert,
+  strictEqual,
+  deepEqual,
+} from "./assertions/index.ts";
+
+// ============================================================================
+// Refine - Type Refinement Utilities
+// ============================================================================
+
+export { ensure, encode } from "./refine/index.ts";
+export type { Refine, KeySet } from "./refine/index.ts";
+
+// ============================================================================
 // Macros - Compile-time code transformation
 // ============================================================================
 
@@ -330,3 +365,81 @@ export {
   // Helper for macro authors
   toAST,
 } from "./macros/index.ts";
+
+// ============================================================================
+// Function Utilities
+// ============================================================================
+
+export {
+  curry,
+  not,
+} from "./functions/index.ts";
+
+// ============================================================================
+// Collection Utilities
+// ============================================================================
+
+export {
+  without,
+} from "./collections/index.ts";
+
+// ============================================================================
+// Random Utilities
+// ============================================================================
+
+export {
+  cryptoRandomString,
+} from "./random/index.ts";
+
+// ============================================================================
+// Git Utilities
+// ============================================================================
+
+export {
+  gitRefFormat,
+  isGitRef,
+  getNameOfRef,
+} from "./git/index.ts";
+
+export type { GitRef } from "./git/index.ts";
+
+// ============================================================================
+// Async Iterator Utilities (axax)
+// ============================================================================
+
+export {
+  // Core utilities
+  Deferred,
+  Subject,
+  StopError,
+  toCallbacks,
+  
+  // Array conversions
+  fromArray,
+  toArray,
+  
+  // Transformations
+  map,
+  reduce,
+  count,
+  
+  // Combining iterators
+  merge,
+  
+  // Concurrent operations
+  concurrentMap,
+  concurrentFilter,
+  
+  // Source adapters
+  fromEmitter,
+  fromNodeStream,
+  
+  // Length utilities
+  collectLength,
+  streamUntilLength,
+} from "./axax/index.ts";
+
+export type {
+  CollectLengthResult,
+  StreamUntilLengthResult,
+} from "./axax/index.ts";

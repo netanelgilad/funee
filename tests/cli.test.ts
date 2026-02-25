@@ -567,6 +567,156 @@ describe('funee CLI', () => {
       expect(stderr).toContain('createMacro was not expanded');
     });
 
+    describe('refine', () => {
+      it('imports Refine and KeySet types from "funee"', async () => {
+        /**
+         * Tests that the Refine type refinement system can be imported:
+         * import type { Refine, KeySet } from "funee"
+         * 
+         * These are compile-time only types for creating branded/opaque types
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/refine/import-refine-types.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('Refine type imported');
+        expect(stdout).toContain('KeySet type imported');
+        expect(stdout).toContain('type guard works');
+        expect(stdout).toContain('KeySet type guard works');
+      });
+
+      it('uses ensure to assert value matches refinement', async () => {
+        /**
+         * Tests the ensure function:
+         * ensure(validator, value) asserts value is the refined type
+         * 
+         * This is for assertion-style type narrowing
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/refine/ensure-basic.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('ensure works');
+        expect(stdout).toContain('validated: hello');
+      });
+
+      it('uses encode to get refined value', async () => {
+        /**
+         * Tests the encode function:
+         * encode(validator, value) returns value as the refined type
+         * 
+         * This is for expression-style type refinement
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/refine/encode-basic.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('encode works');
+        expect(stdout).toContain('encoded: hello');
+      });
+
+      it('combines multiple refinement patterns', async () => {
+        /**
+         * Tests using ensure and encode together with various refined types:
+         * - Email validation
+         * - Positive number validation
+         * - Multi-token refinements (Sanitized + NonEmpty)
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/refine/combined-usage.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('email validated: test@example.com');
+        expect(stdout).toContain('positive encoded: 42');
+        expect(stdout).toContain('safe string: hello world');
+        expect(stdout).toContain('combined usage works');
+      });
+    });
+
+    // ==================== AXAX - ASYNC ITERATOR UTILITIES ====================
+
+    describe('axax', () => {
+      it('fromArray and toArray convert between arrays and async iterables', async () => {
+        /**
+         * Tests the basic array conversion functions:
+         * - fromArray creates an async iterable from an array
+         * - toArray collects an async iterable back into an array
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/axax/fromArray-toArray.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('result: [1,2,3,4,5]');
+      });
+
+      it('map transforms each item in an async iterable', async () => {
+        /**
+         * Tests the map function:
+         * - map(fn)(iterable) applies fn to each item
+         * - fn receives both item and index
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/axax/map.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('doubled: [2,4,6]');
+        expect(stdout).toContain('withIndex: ["0:1","1:2","2:3"]');
+      });
+
+      it('reduce accumulates values from an async iterable', async () => {
+        /**
+         * Tests the reduce function:
+         * - reduce(fn, init)(iterable) reduces to a single value
+         * - Supports async reducers
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/axax/reduce.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('sum: 15');
+        expect(stdout).toContain('asyncSum: 25');
+      });
+
+      it('count returns the number of items in an async iterable', async () => {
+        /**
+         * Tests the count function:
+         * - count(iterable) returns the total number of items
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/axax/count.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('count: 5');
+        expect(stdout).toContain('empty count: 0');
+      });
+
+      it('Deferred creates a promise that can be resolved externally', async () => {
+        /**
+         * Tests the Deferred class:
+         * - Creates a promise with externally accessible resolve/reject
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/axax/deferred.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('deferred: resolved!');
+        expect(stdout).toContain('caught: rejected!');
+      });
+
+      it('Subject creates a push-based async iterable', async () => {
+        /**
+         * Tests the Subject class:
+         * - Allows pushing values to an async iterator from callbacks
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/axax/subject.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('subject result: [1,2,3]');
+      });
+
+      it('merge combines multiple async iterables', async () => {
+        /**
+         * Tests the merge function:
+         * - merge(iter1, iter2, ...) interleaves values from all sources
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/axax/merge.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('merged: [1,2,3,4,5,6]');
+      });
+    });
+
     it('closure macro from funee-lib captures expression as Closure', async () => {
       /**
        * Tests the closure macro imported from "funee"
@@ -582,6 +732,115 @@ describe('funee CLI', () => {
       expect(exitCode).toBe(0);
       expect(stdout).toContain('type: object');
       expect(stdout).toContain('AST type: ArrowFunctionExpression');
+    });
+
+    // ==================== FUNCTION UTILITIES ====================
+
+    it('curry binds first argument to a function', async () => {
+      /**
+       * Tests the curry function from "funee":
+       * 
+       * import { curry } from "funee"
+       * const addTen = curry(add, 10);
+       * addTen(5) // returns 15
+       * 
+       * curry should bind the first argument, returning a function
+       * that takes the remaining arguments
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/curry-test.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('curry result: 15');
+      expect(stdout).toContain('curry result2: 30');
+      expect(stdout).toContain('curry test complete');
+    });
+
+    it('not inverts a predicate function', async () => {
+      /**
+       * Tests the not function from "funee":
+       * 
+       * import { not } from "funee"
+       * const isNotPositive = not(isPositive);
+       * await isNotPositive(5)  // false (since isPositive(5) is true)
+       * await isNotPositive(-3) // true (since isPositive(-3) is false)
+       * 
+       * not should return an async function that returns the inverse boolean
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/not-test.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('not(isPositive)(5): false');
+      expect(stdout).toContain('not(isPositive)(-3): true');
+      expect(stdout).toContain('not(isEvenAsync)(4): false');
+      expect(stdout).toContain('not(isEvenAsync)(7): true');
+      expect(stdout).toContain('not test complete');
+    });
+
+    // ==================== COLLECTION UTILITIES ====================
+
+    it('without removes items from an array', async () => {
+      /**
+       * Tests the without function from "funee":
+       * 
+       * import { without } from "funee"
+       * const result = without([1, 2, 3, 4, 5], [2, 4]);
+       * // result = [1, 3, 5]
+       * 
+       * without should return a new array excluding the items to remove
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/without-test.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('without result: [1,3,5,7,9]');
+      expect(stdout).toContain('without fruits: ["apple","cherry"]');
+      expect(stdout).toContain('without empty: [1,2,3,4,5,6,7,8,9,10]');
+      expect(stdout).toContain('without test complete');
+    });
+
+    // ==================== RANDOM UTILITIES ====================
+
+    it('cryptoRandomString generates random hex strings', async () => {
+      /**
+       * Tests the cryptoRandomString function from "funee":
+       * 
+       * import { cryptoRandomString } from "funee"
+       * const id = cryptoRandomString(16);
+       * 
+       * Should generate a hex string of the specified length
+       */
+      const { stdout, exitCode } = await runFunee(['funee-lib/crypto-random-string.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('length 8: pass');
+      expect(stdout).toContain('length 16: pass');
+      expect(stdout).toContain('is hex: pass');
+      expect(stdout).toContain('unique: pass');
+      expect(stdout).toContain('cryptoRandomString test complete');
+    });
+
+    // ==================== GIT UTILITIES ====================
+
+    it('isGitRef validates git references and getNameOfRef extracts names', async () => {
+      /**
+       * Tests the git utilities from "funee":
+       * 
+       * import { isGitRef, getNameOfRef } from "funee"
+       * 
+       * isGitRef validates strings as git refs (refs/heads/... or refs/tags/...)
+       * getNameOfRef extracts the branch/tag name from a valid ref
+       */
+      const { stdout, exitCode } = await runFunee(['funee-lib/git-ref.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('isGitRef branch: pass');
+      expect(stdout).toContain('branch name: pass');
+      expect(stdout).toContain('isGitRef tag: pass');
+      expect(stdout).toContain('tag name: pass');
+      expect(stdout).toContain('isGitRef nested: pass');
+      expect(stdout).toContain('nested name: pass');
+      expect(stdout).toContain('isGitRef invalid: pass');
+      expect(stdout).toContain('isGitRef remotes: pass');
+      expect(stdout).toContain('git ref test complete');
     });
   });
 
@@ -1503,6 +1762,79 @@ describe('funee CLI', () => {
         // without timing assertions. Document expected behavior.
         expect(true).toBe(true);
       });
+    });
+  });
+
+  describe('assertions', () => {
+    /**
+     * Tests for the funee-lib assertions module
+     * 
+     * The assertions module provides a composable testing library:
+     * - assertThat(value, assertion) - main assertion function
+     * - is(expected) - equality assertion
+     * - notAssertion(assertion) - negate an assertion
+     * - both(a, b) - combine two assertions
+     * - otherwise(cb) - add error context
+     */
+
+    it('is() assertion passes for equal values', async () => {
+      const { stdout, exitCode } = await runFunee(['funee-lib/assertions/basic-is.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('is(4) passed for 4');
+      expect(stdout).toContain('is(hello) passed for hello');
+      expect(stdout).toContain('basic-is test complete');
+    });
+
+    it('is() assertion throws for mismatched values', async () => {
+      const { exitCode, stderr } = await runFunee(['funee-lib/assertions/basic-is-fails.ts']);
+      
+      // Should fail because 5 !== 10
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toMatch(/AssertionError|Expected/i);
+    });
+
+    it('notAssertion() passes when inner assertion fails', async () => {
+      const { stdout, exitCode } = await runFunee(['funee-lib/assertions/not-assertion.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('notAssertion(is(10)) passed for 5');
+      expect(stdout).toContain('notAssertion(is(bar)) passed for foo');
+      expect(stdout).toContain('not-assertion test complete');
+    });
+
+    it('notAssertion() throws when inner assertion passes', async () => {
+      const { exitCode, stderr } = await runFunee(['funee-lib/assertions/not-assertion-fails.ts']);
+      
+      // notAssertion(is(5)) should fail when value IS 5
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toMatch(/AssertionError|Expected/i);
+    });
+
+    it('both() combines multiple assertions', async () => {
+      const { stdout, exitCode } = await runFunee(['funee-lib/assertions/both-assertion.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('both(isNumber, isPositive) passed for 5');
+      expect(stdout).toContain('both(isNumber, isPositive) passed for 100');
+      expect(stdout).toContain('both-assertion test complete');
+    });
+
+    it('otherwise() adds context to error messages', async () => {
+      const { stdout, exitCode } = await runFunee(['funee-lib/assertions/otherwise-context.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('otherwise context was added to error message');
+      expect(stdout).toContain('otherwise-context test complete');
+    });
+
+    it('handles async assertions', async () => {
+      const { stdout, exitCode } = await runFunee(['funee-lib/assertions/async-assertion.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('async assertion passed for 5');
+      expect(stdout).toContain('sync assertion in async context passed');
+      expect(stdout).toContain('async-assertion test complete');
     });
   });
 
