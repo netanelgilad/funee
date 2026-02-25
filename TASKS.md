@@ -4,7 +4,7 @@
 **Port the `everything` repo to funee** - same concepts as Opah but funee's implementation.
 
 ## Phase 1: Core Macro System ✅ COMPLETE
-All 35 E2E tests + 11 Rust unit tests passing!
+All 35 E2E tests + 22 Rust unit tests passing!
 
 - [x] Macro detection (`createMacro()` pattern)
 - [x] Closure capture (expression + references)
@@ -21,19 +21,23 @@ All 35 E2E tests + 11 Rust unit tests passing!
 - [x] Host functions (log via Deno.core.ops)
 - [x] All imports from "funee" working
 
-## Phase 3: HTTP Imports (IN PROGRESS)
+## Phase 3: HTTP Imports ✅ COMPLETE
 - [x] Implement reqwest-based HTTP fetching
 - [x] Cache at ~/.funee/cache/
 - [x] Handle network failures with stale cache fallback
 - [x] Support https:// and http:// URLs
 - [x] Resolve relative imports from HTTP base URLs
-- [ ] Test with real HTTP modules (esm.sh, deno.land)
-- [ ] CLI flag: `--reload` to bypass cache
+- [x] Resolve absolute paths (/) from HTTP base URLs (esm.sh pattern)
+- [x] Follow HTTP redirects (302, chains)
+- [x] Prevent infinite redirect loops
+- [x] Tree-shake HTTP modules (unused exports removed)
+- [x] CLI flag: `--reload` to bypass cache
+- [x] Test with real HTTP modules (esm.sh, deno.land)
 - [ ] Import maps support (future)
 - See: HTTP_IMPORTS_DESIGN.md
 
 ## Phase 4: Port `everything` Modules
-Once HTTP imports work, start porting:
+Now that HTTP imports work, start porting:
 - [ ] macros/ - closure, definition, toAST, etc.
 - [ ] functions/ - curry, not, etc.
 - [ ] collections/
@@ -47,7 +51,8 @@ Once HTTP imports work, start porting:
 - `MACRO_IMPLEMENTATION_PROGRESS.md` - Step-by-step progress
 
 ## Current Stats (2026-02-25)
-- **35 E2E tests passing** ✅
-- **11 Rust unit tests passing** ✅
+- **58 E2E tests passing** ✅
+- **22 Rust unit tests passing** ✅
 - Functional-only architecture (no classes)
 - Macro system fully operational
+- HTTP imports fully operational
