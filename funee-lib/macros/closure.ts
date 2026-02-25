@@ -6,17 +6,8 @@
  * a Closure object at runtime containing the expression's AST.
  */
 
-import {
-  arrayExpression,
-  callExpression,
-  identifier,
-  objectExpression,
-  objectProperty,
-  stringLiteral,
-} from "../ast-types.ts";
 import type { Closure, CanonicalName } from "../core.ts";
 import { createMacro } from "../core.ts";
-import { toAST } from "./toAST.ts";
 
 /**
  * The closure macro captures an expression and returns its AST at runtime.
@@ -26,50 +17,56 @@ import { toAST } from "./toAST.ts";
  * 
  * Becomes:
  *   Closure({
- *     expression: { type: "ArrowFunctionExpression", ... },
+ *     expression: { type: "ArrowFunctionExpression", code: "(x) => x + 1" },
  *     references: new Map([...])
  *   })
- * 
- * @template T - The type of the captured expression
- * @param nodeClosure - The captured expression (provided by the bundler)
- * @returns A Closure that constructs the input closure at runtime
  */
 export const closure = createMacro(<T>(nodeClosure: Closure<T>): Closure<Closure<T>> => {
-  // Build the references array: [["name", CanonicalName({...})], ...]
-  const referencesArray = Array.from(nodeClosure.references.entries()).map(
-    ([localName, canonicalName]) => {
-      return arrayExpression([
-        stringLiteral(localName),
-        objectExpression([
-          objectProperty(identifier("uri"), stringLiteral(canonicalName.uri)),
-          objectProperty(identifier("name"), stringLiteral(canonicalName.name)),
-        ]),
-      ]);
-    }
-  );
+  // nodeClosure.expression is a CODE STRING like "(a, b) => a + b"
+  // We need to determine the AST type from the code
+  const code = String(nodeClosure.expression).trim();
+  
+  // Infer the expression type from the code
+  let exprType = "Expression";
+  if (code.includes("=>")) {
+    exprType = "ArrowFunctionExpression";
+  } else if (code.startsWith("function")) {
+    exprType = "FunctionExpression";
+  } else if (code.startsWith("(") && code.includes("=>")) {
+    exprType = "ArrowFunctionExpression";
+  } else if (code.startsWith("{")) {
+    exprType = "ObjectExpression";
+  } else if (code.startsWith("[")) {
+    exprType = "ArrayExpression";
+  } else if (/^[\d.]/.test(code)) {
+    exprType = "NumericLiteral";
+  } else if (code.startsWith('"') || code.startsWith("'") || code.startsWith("`")) {
+    exprType = "StringLiteral";
+  } else if (code === "true" || code === "false") {
+    exprType = "BooleanLiteral";
+  } else if (code === "null") {
+    exprType = "NullLiteral";
+  } else if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(code)) {
+    exprType = "Identifier";
+  }
 
-  // Build: Closure({ expression: ..., references: new Map([...]) })
-  const closureCall = callExpression(identifier("Closure"), [
-    objectExpression([
-      objectProperty(identifier("expression"), toAST(nodeClosure.expression)),
-      objectProperty(
-        identifier("references"),
-        callExpression(
-          identifier("Map"),
-          referencesArray.length > 0
-            ? [arrayExpression(referencesArray)]
-            : []
-        )
-      ),
-    ]),
-  ]);
+  // Build the references array entries as code
+  const refsEntries = Array.from(nodeClosure.references.entries()).map(
+    ([localName, canonicalName]) => 
+      `[${JSON.stringify(localName)}, { uri: ${JSON.stringify(canonicalName.uri)}, name: ${JSON.stringify(canonicalName.name)} }]`
+  );
+  
+  const refsCode = refsEntries.length > 0 
+    ? `new Map([${refsEntries.join(", ")}])`
+    : "new Map()";
+
+  // Build: ({ expression: { type, code }, references: ... })
+  // Return a plain object - no Closure wrapper needed
+  // The expression is an AST-like object with type and the original code
+  const resultCode = `({ expression: { type: ${JSON.stringify(exprType)}, code: ${JSON.stringify(code)} }, references: ${refsCode} })`;
 
   return {
-    expression: closureCall,
-    references: new Map<string, CanonicalName>([
-      // Closure needs to be imported from funee
-      // Map is a global (native JS), no import needed
-      ["Closure", { uri: "funee", name: "Closure" }],
-    ]),
+    expression: resultCode,
+    references: new Map<string, CanonicalName>(),  // No external references needed
   };
 });

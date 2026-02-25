@@ -566,6 +566,23 @@ describe('funee CLI', () => {
       expect(exitCode).not.toBe(0);
       expect(stderr).toContain('createMacro was not expanded');
     });
+
+    it('closure macro from funee-lib captures expression as Closure', async () => {
+      /**
+       * Tests the closure macro imported from "funee"
+       * 
+       * import { closure } from "funee"
+       * const addClosure = closure((a, b) => a + b);
+       * 
+       * Should expand the macro at bundle time and create a Closure object
+       * with the expression's AST type
+       */
+      const { stdout, exitCode } = await runFunee(['macro/closure-macro.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('type: object');
+      expect(stdout).toContain('AST type: ArrowFunctionExpression');
+    });
   });
 
   describe('HTTP imports', () => {

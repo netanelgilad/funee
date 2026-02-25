@@ -115,7 +115,7 @@ impl SourceGraph {
                                 // Check if the target is a macro
                                 if matches!(&self.graph[*target_node].1, Declaration::Macro(_)) {
                                     // This is a macro call! Expand it
-                                    if let Some(result_expr) = self.execute_macro_call(
+                                    if let Some((result_expr, macro_refs)) = self.execute_macro_call(
                                         nx,
                                         *target_node,
                                         &call_expr,
@@ -123,6 +123,34 @@ impl SourceGraph {
                                         &all_macros,
                                         &mut runtime,
                                     ) {
+                                        // Process references from the macro result
+                                        // These are dependencies the macro introduced - find existing nodes for them
+                                        for (local_name, (uri, export_name)) in macro_refs.iter() {
+                                            // Look for an existing node that provides this export
+                                            // It might be under any edge name, so check all edges
+                                            let mut found_target: Option<NodeIndex> = None;
+                                            
+                                            // Search through all edges to find one that points to a node
+                                            // that resolves to this canonical identifier
+                                            for ((_src, _edge_name), tgt) in edge_targets.iter() {
+                                                let (node_uri, _decl) = &self.graph[*tgt];
+                                                // Check if this node's URI matches our reference
+                                                // (simplified check - in practice we'd need to resolve funee specifier)
+                                                if node_uri.ends_with("funee-lib/index.ts") || 
+                                                   node_uri.ends_with("funee-lib/core.ts") ||
+                                                   node_uri == "funee" {
+                                                    // Check if this edge is for our export name
+                                                    found_target = Some(*tgt);
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            if let Some(target_node) = found_target {
+                                                // Add edge from our node to the existing definition
+                                                self.graph.add_edge(nx, target_node, local_name.clone());
+                                            }
+                                        }
+                                        
                                         // Add edges for identifiers in the result expression
                                         // so they get renamed correctly during emission
                                         let result_idents = self.extract_identifiers(&result_expr);
@@ -150,7 +178,8 @@ impl SourceGraph {
         }
     }
 
-    /// Execute a macro call and return the result expression
+    /// Execute a macro call and return the result expression plus any new references
+    /// References are returned as (local_name, (uri, export_name))
     fn execute_macro_call(
         &self,
         source_node: NodeIndex,
@@ -159,7 +188,7 @@ impl SourceGraph {
         edge_targets: &HashMap<(NodeIndex, String), NodeIndex>,
         all_macros: &[(String, String)],
         runtime: &mut MacroRuntime,
-    ) -> Option<Expr> {
+    ) -> Option<(Expr, HashMap<String, (String, String)>)> {
         // Get the macro function
         let macro_fn = match &self.graph[macro_node].1 {
             Declaration::Macro(expr) => expr,
@@ -205,7 +234,7 @@ impl SourceGraph {
         match runtime.execute_macro(&macro_fn_code, args, all_macros, MAX_ITERATIONS) {
             Ok(result) => {
                 // Parse the result expression back to AST
-                self.parse_expr(&result.expression)
+                self.parse_expr(&result.expression).map(|expr| (expr, result.references))
             }
             Err(e) => {
                 eprintln!("Macro execution failed: {}", e);
