@@ -55,10 +55,13 @@ impl MacroRuntime {
     }
 
     /// Execute a macro function with arguments at bundle time
+    /// `other_macros` contains (name, code) pairs for other macros that may be called
     pub fn execute_macro(
         &mut self,
         macro_fn_code: &str,
         args: Vec<MacroClosure>,
+        other_macros: &[(String, String)],
+        max_iterations: usize,
     ) -> Result<MacroResult, AnyError> {
         // Build arguments array as JS code
         let args_code = args
@@ -81,11 +84,49 @@ impl MacroRuntime {
             .collect::<Vec<_>>()
             .join(", ");
 
+        // Build code for injecting other macros with iteration tracking
+        // Each macro is wrapped to track call count for infinite loop detection
+        let other_macros_code: String = other_macros
+            .iter()
+            .map(|(name, code)| {
+                format!(
+                    r#"const {name} = (function() {{
+                        const __inner = {code};
+                        return function(...args) {{
+                            __macro_call_count++;
+                            if (__macro_call_count > __max_iterations) {{
+                                throw new Error("Macro expansion exceeded max iterations");
+                            }}
+                            return __inner(...args);
+                        }};
+                    }})();"#
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
         // Execute the macro and send result back via op
         let code = format!(
             r#"
-            const __macro_fn = {macro_fn_code};
+            // Track macro call count for infinite loop detection
+            let __macro_call_count = 0;
+            const __max_iterations = {max_iterations};
+            
+            // Inject other macro functions that may be called
+            {other_macros_code}
+            
+            const __macro_fn = (function() {{
+                const __inner = {macro_fn_code};
+                return function(...args) {{
+                    __macro_call_count++;
+                    if (__macro_call_count > __max_iterations) {{
+                        throw new Error("Macro expansion exceeded max iterations");
+                    }}
+                    return __inner(...args);
+                }};
+            }})();
             const __macro_args = [{args_code}];
+            
             const __macro_result = __macro_fn(...__macro_args);
             // Serialize and send result back to Rust
             const __result_json = JSON.stringify({{
@@ -159,7 +200,7 @@ mod tests {
             references: HashMap::new(),
         };
 
-        let result = runtime.execute_macro(macro_fn, vec![arg]).unwrap();
+        let result = runtime.execute_macro(macro_fn, vec![arg], &[], 100).unwrap();
         assert_eq!(result.expression, "(5) + 1");
     }
 
@@ -188,7 +229,7 @@ mod tests {
             references: refs,
         };
 
-        let result = runtime.execute_macro(macro_fn, vec![arg]).unwrap();
+        let result = runtime.execute_macro(macro_fn, vec![arg], &[], 100).unwrap();
         assert_eq!(result.expression, "wrapped(foo(1))");
         assert_eq!(
             result.references.get("foo"),
@@ -220,7 +261,7 @@ mod tests {
             references: HashMap::new(),
         };
 
-        let result = runtime.execute_macro(macro_fn, vec![arg1, arg2]).unwrap();
+        let result = runtime.execute_macro(macro_fn, vec![arg1, arg2], &[], 100).unwrap();
         assert_eq!(result.expression, "(1) + (2)");
     }
 }

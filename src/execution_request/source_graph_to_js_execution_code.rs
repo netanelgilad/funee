@@ -13,7 +13,7 @@ use petgraph::{
 };
 use std::collections::HashMap;
 use swc_common::{Mark, GLOBALS};
-use swc_ecma_ast::{CallExpr, Callee, Expr, Ident, Module, ModuleItem};
+use swc_ecma_ast::{CallExpr, Callee, Expr, Module, ModuleItem};
 use swc_ecma_codegen::{text_writer::JsWriter, Emitter};
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsSyntax};
 use swc_ecma_transforms_base::resolver;
@@ -79,6 +79,21 @@ impl SourceGraph {
             edge_targets.insert((edge.source(), edge.weight().clone()), edge.target());
         }
 
+
+        // Collect all macro definitions (name -> code) for injection into runtime
+        // This allows macros to call other macros
+        let mut all_macros: Vec<(String, String)> = Vec::new();
+        for edge in self.graph.edge_references() {
+            if let Declaration::Macro(expr) = &self.graph[edge.target()].1 {
+                let name = edge.weight().clone();
+                let code = self.expr_to_code(expr);
+                // Avoid duplicates
+                if !all_macros.iter().any(|(n, _)| n == &name) {
+                    all_macros.push((name, code));
+                }
+            }
+        }
+
         // Collect nodes to process
         let nodes: Vec<NodeIndex> = self.graph.node_indices().collect();
         
@@ -105,6 +120,7 @@ impl SourceGraph {
                                         *target_node,
                                         &call_expr,
                                         &edge_targets,
+                                        &all_macros,
                                         &mut runtime,
                                     ) {
                                         // Add edges for identifiers in the result expression
@@ -141,6 +157,7 @@ impl SourceGraph {
         macro_node: NodeIndex,
         call_expr: &CallExpr,
         edge_targets: &HashMap<(NodeIndex, String), NodeIndex>,
+        all_macros: &[(String, String)],
         runtime: &mut MacroRuntime,
     ) -> Option<Expr> {
         // Get the macro function
@@ -182,8 +199,10 @@ impl SourceGraph {
             })
             .collect();
 
-        // Execute the macro
-        match runtime.execute_macro(&macro_fn_code, args) {
+        // Execute the macro with other macros available for recursive calls
+        // Max iterations prevents infinite macro recursion
+        const MAX_ITERATIONS: usize = 100;
+        match runtime.execute_macro(&macro_fn_code, args, all_macros, MAX_ITERATIONS) {
             Ok(result) => {
                 // Parse the result expression back to AST
                 self.parse_expr(&result.expression)
@@ -244,6 +263,7 @@ impl SourceGraph {
     }
 
     /// Parse a JavaScript expression string back to AST
+    /// Runs the resolver to apply unresolved_mark to identifiers
     fn parse_expr(&self, code: &str) -> Option<Expr> {
         let cm = self.source_map.clone();
         let fm = cm.new_source_file(
@@ -260,7 +280,15 @@ impl SourceGraph {
         
         let mut parser = Parser::new_from(lexer);
         match parser.parse_expr() {
-            Ok(expr) => Some(*expr),
+            Ok(mut expr) => {
+                // Run the resolver to apply unresolved_mark to identifiers
+                // This ensures they'll be renamed correctly during emission
+                GLOBALS.set(&self.references_mark.globals, || {
+                    let mut res = resolver(self.references_mark.mark, Mark::new(), true);
+                    expr.visit_mut_with(&mut res);
+                });
+                Some(*expr)
+            },
             Err(e) => {
                 eprintln!("Failed to parse macro result '{}': {:?}", code, e);
                 None
