@@ -500,3 +500,34 @@ export {
 
 export type { Scenario, ScenarioResult, RunScenariosOptions, ScenarioLogger } from "./validator/index.ts";
 export { scenario, runScenarios } from "./validator/index.ts";
+
+// ============================================================================
+// Filesystem - File System Operations
+// ============================================================================
+
+export type {
+  RelativePathString,
+  AbsolutePathString,
+  PathString,
+  FolderPathString,
+  FilePathString,
+  FsResult,
+  FsResultOk,
+  FsResultErr,
+  FileStats,
+} from "./filesystem/index.ts";
+
+export {
+  join,
+  parseResult,
+  unwrap,
+  readFile,
+  readFileRaw,
+  writeFile,
+  writeFileRaw,
+  isFile,
+  lstat,
+  lstatRaw,
+  readdir,
+  readdirRaw,
+} from "./filesystem/index.ts";
