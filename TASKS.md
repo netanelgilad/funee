@@ -21,11 +21,15 @@ All 35 E2E tests + 11 Rust unit tests passing!
 - [x] Host functions (log via Deno.core.ops)
 - [x] All imports from "funee" working
 
-## Phase 3: HTTP Imports (NEXT)
-- [ ] Implement reqwest-based HTTP fetching
-- [ ] Cache at ~/.funee/cache/
-- [ ] Handle network failures gracefully
-- [ ] Support https:// and http:// URLs
+## Phase 3: HTTP Imports (IN PROGRESS)
+- [x] Implement reqwest-based HTTP fetching
+- [x] Cache at ~/.funee/cache/
+- [x] Handle network failures with stale cache fallback
+- [x] Support https:// and http:// URLs
+- [x] Resolve relative imports from HTTP base URLs
+- [ ] Test with real HTTP modules (esm.sh, deno.land)
+- [ ] CLI flag: `--reload` to bypass cache
+- [ ] Import maps support (future)
 - See: HTTP_IMPORTS_DESIGN.md
 
 ## Phase 4: Port `everything` Modules
