@@ -309,3 +309,24 @@ export {
 } from "./ast-utils.ts";
 
 export type { ASTVisitor } from "./ast-utils.ts";
+
+// ============================================================================
+// Macros - Compile-time code transformation
+// ============================================================================
+
+export {
+  // Core capture macros
+  closure,
+  definition,
+  Definition,
+  
+  // Utility macros
+  canonicalName,
+  canonicalNameFn,
+  tuple,
+  unsafeCast,
+  unsafeDefined,
+  
+  // Helper for macro authors
+  toAST,
+} from "./macros/index.ts";
