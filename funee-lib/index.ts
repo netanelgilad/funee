@@ -44,7 +44,9 @@ export {
   httpFetch,
   // Filesystem host functions (low-level - use the wrappers in filesystem/ instead)
   fsReadFile,
+  fsReadFileBinary,
   fsWriteFile,
+  fsWriteFileBinary,
   fsIsFile,
   fsLstat,
   fsReaddir,
@@ -533,14 +535,41 @@ export {
   unwrap,
   readFile,
   readFileRaw,
+  readFileBinary,
+  readFileBinaryRaw,
   writeFile,
   writeFileRaw,
+  writeFileBinary,
+  writeFileBinaryRaw,
+  base64Encode,
+  base64Decode,
   isFile,
   lstat,
   lstatRaw,
   readdir,
   readdirRaw,
 } from "./filesystem/index.ts";
+
+// ============================================================================
+// Tar - Archive Utilities
+// ============================================================================
+
+export type {
+  TarFileType,
+  TarHeader,
+  TarEntry,
+  TarEncodeOptions,
+  TarInput,
+} from "./tar/index.ts";
+
+export {
+  encodeHeader,
+  decodeHeader,
+  extract,
+  extractFromBuffer,
+  createTar,
+  createTarStream,
+} from "./tar/index.ts";
 
 // ============================================================================
 // GitHub - GitHub API Utilities
@@ -585,3 +614,10 @@ export { withCache } from "./withCache.ts";
 // ============================================================================
 
 export { someDirectory, someString } from "./abstracts/index.ts";
+
+// ============================================================================
+// Watcher - File Watching (placeholder)
+// ============================================================================
+
+export type { FileWatcher } from "./watcher/index.ts";
+export { watchFile } from "./watcher/index.ts";

@@ -1022,6 +1022,152 @@ describe('funee CLI', () => {
       expect(stdout).toContain('Custom registry: https://npm.myorg.com');
       expect(stdout).toContain('npm imports test complete');
     });
+
+    // ==================== CACHE UTILITIES ====================
+
+    it('withCache memoizes function calls in memory', async () => {
+      /**
+       * Tests the withCache utility from "funee":
+       * 
+       * import { withCache } from "funee"
+       * 
+       * - Caches function results based on argument
+       * - Returns cached result on subsequent calls with same arg
+       * - Computes new result for different args
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/with-cache.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('result1: 10');
+      expect(stdout).toContain('calls after first: 1');
+      expect(stdout).toContain('result2: 10');
+      expect(stdout).toContain('calls after second: 1');
+      expect(stdout).toContain('result3: 20');
+      expect(stdout).toContain('calls after third: 2');
+      expect(stdout).toContain('withCache test complete');
+    });
+
+    // ==================== OS UTILITIES ====================
+
+    it('tmpdir returns system temp directory path', async () => {
+      /**
+       * Tests the tmpdir utility from "funee":
+       * 
+       * import { tmpdir } from "funee"
+       * 
+       * - Returns a non-empty string path
+       * - Returns a valid system path
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/tmpdir.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('tmpdir is string: pass');
+      expect(stdout).toContain('tmpdir is non-empty: pass');
+      expect(stdout).toContain('tmpdir is valid path: pass');
+      expect(stdout).toContain('tmpdir test complete');
+    });
+
+    // ==================== ABSTRACT UTILITIES ====================
+
+    it('someString generates random strings', async () => {
+      /**
+       * Tests the someString utility from "funee":
+       * 
+       * import { someString } from "funee"
+       * 
+       * - Generates random hex strings
+       * - Default length is 16
+       * - Supports custom lengths
+       * - Generates unique values
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/some-string.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('default length: pass');
+      expect(stdout).toContain('custom length 8: pass');
+      expect(stdout).toContain('custom length 32: pass');
+      expect(stdout).toContain('is hex: pass');
+      expect(stdout).toContain('unique: pass');
+      expect(stdout).toContain('someString test complete');
+    });
+
+    it('someDirectory generates random temp directory paths', async () => {
+      /**
+       * Tests the someDirectory utility from "funee":
+       * 
+       * import { someDirectory } from "funee"
+       * 
+       * - Generates paths in the system temp directory
+       * - Includes funee_ prefix
+       * - Generates unique paths
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/some-directory.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('is string: pass');
+      expect(stdout).toContain('starts with tmpdir: pass');
+      expect(stdout).toContain('contains funee prefix: pass');
+      expect(stdout).toContain('unique: pass');
+      expect(stdout).toContain('someDirectory test complete');
+    });
+
+    // ==================== MEMOIZE UTILITIES ====================
+
+    it('memoizeInFS persists cache to filesystem', async () => {
+      /**
+       * Tests the memoizeInFS utility from "funee":
+       * 
+       * import { memoizeInFS } from "funee"
+       * 
+       * - Caches function results to ./cache/ directory
+       * - Returns cached result on subsequent calls
+       * - Creates cache directory if needed
+       */
+      const { execSync } = await import('child_process');
+      // Clean up any existing cache
+      execSync('rm -rf ./cache', { cwd: FIXTURES });
+      
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/memoize-in-fs.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('result1: 10');
+      expect(stdout).toContain('calls after first: 1');
+      expect(stdout).toContain('result2: 10');
+      expect(stdout).toContain('calls after second: 1');
+      expect(stdout).toContain('result3: 20');
+      expect(stdout).toContain('calls after third: 2');
+      expect(stdout).toContain('cache dir exists: pass');
+      expect(stdout).toContain('cache file exists: pass');
+      expect(stdout).toContain('memoizeInFS test complete');
+      
+      // Clean up after test
+      execSync('rm -rf ./cache', { cwd: FIXTURES });
+    });
   });
 
   describe('HTTP imports', () => {

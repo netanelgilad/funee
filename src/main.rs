@@ -63,6 +63,19 @@ fn op_fsReadFile(#[string] path: &str) -> String {
     serde_json::to_string(&result).unwrap_or_else(|e| format!(r#"{{"type":"error","error":"{}"}}"#, e))
 }
 
+/// Host function: read file contents as binary (base64 encoded)
+/// Returns JSON: { type: "ok", value: "<base64>" } or { type: "error", error: "message" }
+#[op2]
+#[string]
+fn op_fsReadFileBinary(#[string] path: &str) -> String {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let result = match fs::read(path) {
+        Ok(bytes) => FsResult::Ok { value: STANDARD.encode(&bytes) },
+        Err(e) => FsResult::Err { error: format!("readFileBinary failed: {}", e) },
+    };
+    serde_json::to_string(&result).unwrap_or_else(|e| format!(r#"{{"type":"error","error":"{}"}}"#, e))
+}
+
 /// Host function: write string content to a file
 /// Returns JSON: { type: "ok", value: null } or { type: "error", error: "message" }
 #[op2]
@@ -71,6 +84,22 @@ fn op_fsWriteFile(#[string] path: &str, #[string] content: &str) -> String {
     let result: FsResult<()> = match fs::write(path, content) {
         Ok(()) => FsResult::Ok { value: () },
         Err(e) => FsResult::Err { error: format!("writeFile failed: {}", e) },
+    };
+    serde_json::to_string(&result).unwrap_or_else(|e| format!(r#"{{"type":"error","error":"{}"}}"#, e))
+}
+
+/// Host function: write binary content (base64 encoded) to a file
+/// Returns JSON: { type: "ok", value: null } or { type: "error", error: "message" }
+#[op2]
+#[string]
+fn op_fsWriteFileBinary(#[string] path: &str, #[string] content_base64: &str) -> String {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let result: FsResult<()> = match STANDARD.decode(content_base64) {
+        Ok(bytes) => match fs::write(path, bytes) {
+            Ok(()) => FsResult::Ok { value: () },
+            Err(e) => FsResult::Err { error: format!("writeFileBinary failed: {}", e) },
+        },
+        Err(e) => FsResult::Err { error: format!("writeFileBinary base64 decode failed: {}", e) },
     };
     serde_json::to_string(&result).unwrap_or_else(|e| format!(r#"{{"type":"error","error":"{}"}}"#, e))
 }
@@ -139,6 +168,35 @@ fn op_fsReaddir(#[string] path: &str) -> String {
             }
         }
         Err(e) => FsResult::Err { error: format!("readdir failed: {}", e) },
+    };
+    serde_json::to_string(&result).unwrap_or_else(|e| format!(r#"{{"type":"error","error":"{}"}}"#, e))
+}
+
+// ============================================================================
+// OS Host Functions
+// ============================================================================
+
+/// Host function: get the system's temporary directory path
+#[op2]
+#[string]
+fn op_tmpdir() -> String {
+    std::env::temp_dir().to_string_lossy().to_string()
+}
+
+/// Host function: check if a file or directory exists
+#[op2(fast)]
+fn op_fsExists(#[string] path: &str) -> bool {
+    Path::new(path).exists()
+}
+
+/// Host function: create a directory (including parents)
+/// Returns JSON: { type: "ok", value: null } or { type: "error", error: "message" }
+#[op2]
+#[string]
+fn op_fsMkdir(#[string] path: &str) -> String {
+    let result: FsResult<()> = match fs::create_dir_all(path) {
+        Ok(()) => FsResult::Ok { value: () },
+        Err(e) => FsResult::Err { error: format!("mkdir failed: {}", e) },
     };
     serde_json::to_string(&result).unwrap_or_else(|e| format!(r#"{{"type":"error","error":"{}"}}"#, e))
 }
@@ -283,10 +341,24 @@ fn main() -> Result<(), AnyError> {
         ),
         (
             FuneeIdentifier {
+                name: "fsReadFileBinary".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_fsReadFileBinary(),
+        ),
+        (
+            FuneeIdentifier {
                 name: "fsWriteFile".to_string(),
                 uri: "funee".to_string(),
             },
             op_fsWriteFile(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "fsWriteFileBinary".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_fsWriteFileBinary(),
         ),
         (
             FuneeIdentifier {
@@ -316,6 +388,28 @@ fn main() -> Result<(), AnyError> {
                 uri: "funee".to_string(),
             },
             op_httpFetch(),
+        ),
+        // OS host functions
+        (
+            FuneeIdentifier {
+                name: "tmpdir".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_tmpdir(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "fsExists".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_fsExists(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "fsMkdir".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_fsMkdir(),
         ),
     ]);
     

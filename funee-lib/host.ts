@@ -20,7 +20,14 @@ export declare function httpFetch(
 
 // Filesystem host functions (return JSON strings)
 export declare function fsReadFile(path: string): string;
+export declare function fsReadFileBinary(path: string): string;
 export declare function fsWriteFile(path: string, content: string): string;
+export declare function fsWriteFileBinary(path: string, contentBase64: string): string;
 export declare function fsIsFile(path: string): boolean;
 export declare function fsLstat(path: string): string;
 export declare function fsReaddir(path: string): string;
+export declare function fsExists(path: string): boolean;
+export declare function fsMkdir(path: string): string;
+
+// OS host functions
+export declare function tmpdir(): string;
