@@ -34,3 +34,6 @@ export { scenario } from "./scenario.ts";
 
 export type { ScenarioResult, RunScenariosOptions, ScenarioLogger } from "./runScenarios.ts";
 export { runScenarios } from "./runScenarios.ts";
+
+export type { WatchOptions } from "./runScenariosWatch.ts";
+export { runScenariosWatch } from "./runScenariosWatch.ts";

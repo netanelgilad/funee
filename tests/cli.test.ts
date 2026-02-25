@@ -1207,6 +1207,37 @@ describe('funee CLI', () => {
       // Clean up after test
       execSync('rm -rf ./cache', { cwd: FIXTURES });
     });
+
+    // ==================== WATCHER UTILITIES ====================
+
+    it('watchFile and watchDirectory create and stop watchers', async () => {
+      /**
+       * Tests the watcher utilities from "funee":
+       * 
+       * import { watchFile, watchDirectory } from "funee"
+       * 
+       * - watchFile creates a watcher for a single file
+       * - watchDirectory creates a watcher for a directory
+       * - Both support recursive option
+       * - Both can be stopped with .stop()
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/watcher-test.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('test directory created: pass');
+      expect(stdout).toContain('file watcher created: pass');
+      expect(stdout).toContain('file watcher stopped: pass');
+      expect(stdout).toContain('directory watcher created: pass');
+      expect(stdout).toContain('directory watcher stopped: pass');
+      expect(stdout).toContain('non-recursive watcher created: pass');
+      expect(stdout).toContain('non-recursive watcher stopped: pass');
+      expect(stdout).toContain('watcher test complete');
+    });
   });
 
   describe('HTTP imports', () => {
@@ -2277,6 +2308,22 @@ describe('funee CLI', () => {
       expect(stdout).toContain('Passed: 2');
       expect(stdout).toContain('Failed: 1');
       expect(stdout).toContain('Failure handling test passed!');
+    });
+
+    it('exports runScenariosWatch for watch mode', async () => {
+      /**
+       * Tests that runScenariosWatch is exported from funee:
+       * - Can import runScenariosWatch
+       * - Function exists and has correct type
+       * 
+       * Note: Watch mode runs indefinitely, so we only verify the export exists.
+       */
+      const { stdout, exitCode } = await runFunee(['validator-watch-export.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('runScenariosWatch exported: yes');
+      expect(stdout).toContain('runScenariosWatch is function: yes');
+      expect(stdout).toContain('WatchOptions type check: pass');
     });
   });
 

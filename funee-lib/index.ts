@@ -54,6 +54,10 @@ export {
   fsMkdir,
   // OS host functions (low-level - use the wrappers in os/ instead)
   tmpdir as tmpdirHost,
+  // Watcher host functions (low-level - use the wrappers in watcher/ instead)
+  watchStart,
+  watchPoll,
+  watchStop,
 } from "./host.ts";
 
 // ============================================================================
@@ -510,8 +514,8 @@ export {
 // Validator - Test Scenario Execution
 // ============================================================================
 
-export type { Scenario, ScenarioResult, RunScenariosOptions, ScenarioLogger } from "./validator/index.ts";
-export { scenario, runScenarios } from "./validator/index.ts";
+export type { Scenario, ScenarioResult, RunScenariosOptions, ScenarioLogger, WatchOptions } from "./validator/index.ts";
+export { scenario, runScenarios, runScenariosWatch } from "./validator/index.ts";
 
 // ============================================================================
 // Filesystem - File System Operations
@@ -618,8 +622,14 @@ export { withCache } from "./withCache.ts";
 export { someDirectory, someString } from "./abstracts/index.ts";
 
 // ============================================================================
-// Watcher - File Watching (placeholder)
+// Watcher - File System Watching
 // ============================================================================
 
-export type { FileWatcher } from "./watcher/index.ts";
-export { watchFile } from "./watcher/index.ts";
+export type {
+  WatchEventKind,
+  WatchEvent,
+  WatchOptions,
+  Watcher,
+} from "./watcher/index.ts";
+
+export { watchFile, watchDirectory } from "./watcher/index.ts";
