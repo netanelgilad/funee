@@ -60,7 +60,9 @@ export { parseResult, unwrap } from "./FsResult.ts";
 
 // File operations
 export { readFile, readFileRaw } from "./readFile.ts";
+export { readFileBinary, readFileBinaryRaw, base64Encode, base64Decode } from "./readFileBinary.ts";
 export { writeFile, writeFileRaw } from "./writeFile.ts";
+export { writeFileBinary, writeFileBinaryRaw } from "./writeFileBinary.ts";
 export { isFile } from "./isFile.ts";
 export { lstat, lstatRaw } from "./lstat.ts";
 export { readdir, readdirRaw } from "./readdir.ts";

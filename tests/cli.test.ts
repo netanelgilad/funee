@@ -968,6 +968,45 @@ describe('funee CLI', () => {
       execSync('rm -rf /tmp/funee-fs-test');
     });
 
+    // ==================== TAR ARCHIVE UTILITIES ====================
+
+    it('creates and extracts tar archives', async () => {
+      /**
+       * Tests the tar utilities from "funee":
+       * 
+       * import { createTar, extractFromBuffer, encodeHeader, decodeHeader } from "funee"
+       * 
+       * - encodeHeader: creates a 512-byte tar header
+       * - decodeHeader: parses a tar header
+       * - createTar: creates a tar archive from entries
+       * - extractFromBuffer: extracts entries from a tar archive
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/tar-test.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('encodeHeader: pass');
+      expect(stdout).toContain('decodeHeader name: pass');
+      expect(stdout).toContain('decodeHeader size: pass');
+      expect(stdout).toContain('decodeHeader type: pass');
+      expect(stdout).toContain('createTar: pass');
+      expect(stdout).toContain('extractFromBuffer count: pass');
+      expect(stdout).toContain('entry 1 name: pass');
+      expect(stdout).toContain('entry 1 data: pass');
+      expect(stdout).toContain('entry 2 name: pass');
+      expect(stdout).toContain('entry 2 data: pass');
+      expect(stdout).toContain('dir entry count: pass');
+      expect(stdout).toContain('dir entry type: pass');
+      expect(stdout).toContain('large file size: pass');
+      expect(stdout).toContain('large file integrity: pass');
+      expect(stdout).toContain('empty file: pass');
+      expect(stdout).toContain('tar test complete');
+    });
+
     // ==================== GITHUB UTILITIES ====================
 
     it('imports GitHub utilities from "funee"', async () => {

@@ -569,6 +569,8 @@ export {
   extractFromBuffer,
   createTar,
   createTarStream,
+  encodeString,
+  decodeString,
 } from "./tar/index.ts";
 
 // ============================================================================
