@@ -56,6 +56,8 @@ pub struct HttpFileLoader {
     http_client: Client,
     /// Max cache age in seconds (default: 24 hours)
     max_cache_age: u64,
+    /// Force reload from network, bypassing cache freshness check
+    force_reload: bool,
 }
 
 impl HttpFileLoader {
@@ -70,6 +72,7 @@ impl HttpFileLoader {
         fs::create_dir_all(&cache_dir)?;
         
         let http_client = Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(10))
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| io::Error::new(ErrorKind::Other, e))?;
@@ -78,7 +81,15 @@ impl HttpFileLoader {
             cache_dir,
             http_client,
             max_cache_age: 24 * 60 * 60, // 24 hours
+            force_reload: false,
         })
+    }
+
+    /// Create a new HTTP file loader with force reload enabled (bypasses cache freshness)
+    pub fn with_force_reload(force_reload: bool) -> io::Result<Self> {
+        let mut loader = Self::new()?;
+        loader.force_reload = force_reload;
+        Ok(loader)
     }
 
     /// Get the default cache directory (~/.funee/cache)
@@ -136,8 +147,8 @@ impl HttpFileLoader {
         let cache_path = self.get_cache_path(url);
         let metadata_path = self.get_metadata_path(url);
 
-        // Check if cached and fresh
-        if cache_path.exists() {
+        // Check if cached and fresh (skip cache check if force_reload is enabled)
+        if !self.force_reload && cache_path.exists() {
             if let Some(metadata) = self.load_metadata(url) {
                 if metadata.is_fresh(self.max_cache_age) {
                     return fs::read_to_string(&cache_path);
