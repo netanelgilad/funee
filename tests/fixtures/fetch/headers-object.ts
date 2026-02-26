@@ -9,12 +9,14 @@
  * - Headers.values() returns iterable of header values
  * - Headers.forEach() iterates over all headers
  * - Headers constructor accepts object, array, or Headers
+ * 
+ * Uses local test server for fast, reliable testing.
  */
 import { log } from "funee";
 
 export default async () => {
   // Test Headers from response
-  const response = await fetch("https://httpbin.org/response-headers?X-Test=hello&X-Another=world");
+  const response = await fetch("http://localhost:19998/response-headers?X-Test=hello&X-Another=world");
   const headers = response.headers;
   
   // get() - should be case-insensitive

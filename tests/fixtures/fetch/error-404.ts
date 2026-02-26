@@ -9,12 +9,14 @@
  * 
  * Per web standards, fetch only throws on network errors,
  * not on HTTP error status codes.
+ * 
+ * Uses local test server for fast, reliable testing.
  */
 import { log } from "funee";
 
 export default async () => {
-  // httpbin.org/status/404 returns a 404 response
-  const response = await fetch("https://httpbin.org/status/404");
+  // Test server /status/404 returns a 404 response
+  const response = await fetch("http://localhost:19998/status/404");
   
   // Should not throw - we get here successfully
   log("fetch did not throw on 404");

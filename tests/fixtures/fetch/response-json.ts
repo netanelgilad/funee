@@ -5,12 +5,12 @@
  * - response.json() returns a Promise that resolves to parsed JSON
  * - JSON should be properly parsed into JavaScript objects
  * 
- * This test uses httpbin.org/json which returns a known JSON structure.
+ * Uses local test server which returns a "slideshow" JSON structure.
  */
 import { log } from "funee";
 
 export default async () => {
-  const response = await fetch("https://httpbin.org/json");
+  const response = await fetch("http://localhost:19998/json");
   
   // json() should return a Promise
   const jsonPromise = response.json();
@@ -23,7 +23,7 @@ export default async () => {
   log(`data type: ${typeof data}`);
   log(`data is object: ${data !== null && typeof data === 'object'}`);
   
-  // httpbin.org/json returns a "slideshow" object
+  // Test server returns a "slideshow" object (mirroring httpbin.org/json structure)
   log(`has slideshow: ${'slideshow' in data}`);
   
   // Verify nested object access works

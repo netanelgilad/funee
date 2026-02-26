@@ -5,12 +5,12 @@
  * - response.text() returns a Promise that resolves to a string
  * - The string contains the full response body
  * 
- * This test uses httpbin.org/html which returns HTML content.
+ * Uses local test server which returns HTML content.
  */
 import { log } from "funee";
 
 export default async () => {
-  const response = await fetch("https://httpbin.org/html");
+  const response = await fetch("http://localhost:19998/html");
   
   // text() should return a Promise
   const textPromise = response.text();
@@ -25,7 +25,7 @@ export default async () => {
   // Should have content
   log(`text length > 0: ${text.length > 0}`);
   
-  // httpbin.org/html returns an HTML page
+  // Test server returns an HTML page
   log(`contains html tag: ${text.toLowerCase().includes('<html')}`);
   log(`contains body tag: ${text.toLowerCase().includes('<body')}`);
   

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { execSync, spawn } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { startTestServer } from './helpers/testServer';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FUNEE_BIN = resolve(__dirname, '../target/release/funee');
@@ -2840,9 +2841,18 @@ export default async () => {
      * Tests for the web-standard fetch() implementation per WHATWG Fetch Standard.
      * These tests verify that funee provides a fetch API that matches browser behavior.
      * 
-     * Note: These tests are designed to FAIL until fetch() is implemented.
-     * They serve as the specification for the implementation.
+     * Uses a local test server for fast, reliable, offline-capable testing.
      */
+
+    let fetchTestServer: ReturnType<typeof startTestServer>;
+
+    beforeAll(() => {
+      fetchTestServer = startTestServer(19998);
+    });
+
+    afterAll(() => {
+      fetchTestServer.close();
+    });
 
     it('fetch basic GET returns Response object', async () => {
       /**
@@ -2922,7 +2932,7 @@ export default async () => {
       expect(stdout).toContain('status value: 200');
       expect(stdout).toContain('statusText type: string');
       expect(stdout).toContain('url type: string');
-      expect(stdout).toContain('url contains httpbin: true');
+      expect(stdout).toContain('url contains localhost: true');
       expect(stdout).toContain('headers exists: true');
       expect(stdout).toContain('headers has get method: true');
       expect(stdout).toContain('content-type header: true');

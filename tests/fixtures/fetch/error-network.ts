@@ -35,7 +35,7 @@ export default async () => {
   // Test connection refused (localhost on a port that's likely not in use)
   let connectionErrorThrown = false;
   try {
-    await fetch("http://127.0.0.1:59999/test");
+    await fetch("http://localhost:1/test");
   } catch (error) {
     connectionErrorThrown = true;
   }

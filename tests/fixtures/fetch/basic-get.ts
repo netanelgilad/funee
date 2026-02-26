@@ -5,13 +5,13 @@
  * - fetch(url) returns a Promise that resolves to a Response object
  * - Response should have standard properties (ok, status, etc.)
  * 
- * This test uses httpbin.org for real HTTP testing.
+ * Uses local test server for fast, reliable testing.
  */
 import { log } from "funee";
 
 export default async () => {
   // fetch should be a global function per web standards
-  const response = await fetch("https://httpbin.org/get");
+  const response = await fetch("http://localhost:19998/get");
   
   // Verify it returns a Response object
   log(`response type: ${typeof response}`);

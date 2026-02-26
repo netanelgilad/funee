@@ -6,12 +6,12 @@
  * - Custom headers are sent with the request
  * - Standard headers like Authorization work correctly
  * 
- * This test uses httpbin.org/headers which echoes back the request headers.
+ * Uses local test server which echoes back the request headers.
  */
 import { log } from "funee";
 
 export default async () => {
-  const response = await fetch("https://httpbin.org/headers", {
+  const response = await fetch("http://localhost:19998/headers", {
     headers: {
       "X-Custom-Header": "test-value-123",
       "Authorization": "Bearer my-test-token",
@@ -25,7 +25,7 @@ export default async () => {
   
   const data = await response.json();
   
-  // httpbin returns headers in the 'headers' field
+  // Test server returns headers in the 'headers' field
   log(`has headers field: ${'headers' in data}`);
   
   if (data.headers) {
@@ -47,7 +47,7 @@ export default async () => {
     const acceptHeader = headers['Accept'] || headers['accept'];
     log(`Accept received: ${acceptHeader?.includes('application/json')}`);
     
-    // X-Trace-Id (note: X-Request-Id is stripped by httpbin.org's infrastructure)
+    // X-Trace-Id
     const traceIdHeader = headers['X-Trace-Id'] || headers['x-trace-id'];
     log(`X-Trace-Id received: ${traceIdHeader === 'req-12345'}`);
   }

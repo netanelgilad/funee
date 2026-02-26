@@ -8,12 +8,14 @@
  * - response.url: final URL after any redirects
  * - response.headers: Headers object with response headers
  * - response.redirected: boolean indicating if response was redirected
+ * 
+ * Uses local test server for fast, reliable testing.
  */
 import { log } from "funee";
 
 export default async () => {
   // Test with a successful response
-  const response = await fetch("https://httpbin.org/get");
+  const response = await fetch("http://localhost:19998/get");
   
   // ok property
   log(`ok type: ${typeof response.ok}`);
@@ -29,7 +31,7 @@ export default async () => {
   
   // url property
   log(`url type: ${typeof response.url}`);
-  log(`url contains httpbin: ${response.url.includes('httpbin.org')}`);
+  log(`url contains localhost: ${response.url.includes('localhost')}`);
   
   // headers property - should be a Headers object or at least have get method
   log(`headers exists: ${response.headers !== undefined}`);
