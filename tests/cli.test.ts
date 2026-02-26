@@ -657,6 +657,21 @@ describe('funee CLI', () => {
         expect(stdout).toContain('withIndex: ["0:1","1:2","2:3"]');
       });
 
+      it('filter selects items from an async iterable based on a predicate', async () => {
+        /**
+         * Tests the filter function:
+         * - filter(fn)(iterable) keeps only items where fn returns true
+         * - Supports both curried and direct calling styles
+         * - Supports async predicates
+         */
+        const { stdout, exitCode } = await runFunee(['funee-lib/axax/filter.ts']);
+        
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain('evens (curried): [2,4,6]');
+        expect(stdout).toContain('odds (direct): [1,3,5]');
+        expect(stdout).toContain('gtTwo: [3,4,5,6]');
+      });
+
       it('reduce accumulates values from an async iterable', async () => {
         /**
          * Tests the reduce function:
@@ -2762,5 +2777,55 @@ export default async () => {
         fs.rmSync(testDir, { recursive: true, force: true });
       }
     }, 15000);
+  });
+
+  describe('timers', () => {
+    it('supports setTimeout', async () => {
+      /**
+       * Tests that setTimeout works correctly:
+       * - Callback fires after the delay
+       * - Can be awaited via Promise
+       */
+      const { stdout, exitCode } = await runFunee(['setTimeout-basic.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('start');
+      expect(stdout).toContain('timeout fired');
+      expect(stdout).toContain('end');
+      // Verify order
+      const startIdx = stdout.indexOf('start');
+      const timeoutIdx = stdout.indexOf('timeout fired');
+      const endIdx = stdout.indexOf('end');
+      expect(startIdx).toBeLessThan(timeoutIdx);
+      expect(timeoutIdx).toBeLessThan(endIdx);
+    });
+
+    it('supports clearTimeout', async () => {
+      /**
+       * Tests that clearTimeout correctly cancels a pending timeout
+       */
+      const { stdout, exitCode } = await runFunee(['setTimeout-clearTimeout.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('start');
+      expect(stdout).not.toContain('should not fire');
+      expect(stdout).toContain('waited past cancelled timeout');
+      expect(stdout).toContain('end');
+    });
+
+    it('supports setInterval and clearInterval', async () => {
+      /**
+       * Tests that setInterval fires repeatedly until cleared
+       */
+      const { stdout, exitCode } = await runFunee(['setInterval-basic.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('start');
+      expect(stdout).toContain('tick 1');
+      expect(stdout).toContain('tick 2');
+      expect(stdout).toContain('tick 3');
+      expect(stdout).not.toContain('tick 4'); // Should have been cleared
+      expect(stdout).toContain('end');
+    });
   });
 });

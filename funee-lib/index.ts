@@ -439,6 +439,7 @@ export {
   
   // Transformations
   map,
+  filter,
   reduce,
   count,
   

@@ -31,6 +31,7 @@ export { toArray } from "./toArray.ts";
 
 // Transformations
 export { map } from "./map.ts";
+export { filter } from "./filter.ts";
 export { reduce } from "./reduce.ts";
 export { count } from "./count.ts";
 

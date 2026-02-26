@@ -39,6 +39,71 @@ fn op_randomBytes(length: u32) -> String {
 }
 
 // ============================================================================
+// Timer Host Functions
+// ============================================================================
+
+/// Storage for active timers (for cancellation)
+static TIMER_CANCELLERS: LazyLock<Mutex<HashMap<u32, tokio::sync::oneshot::Sender<()>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static NEXT_TIMER_ID: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+
+/// Host function: start a cancellable timer
+/// Returns the timer ID immediately
+#[op2(fast)]
+fn op_timerStart() -> u32 {
+    let timer_id = {
+        let mut id = NEXT_TIMER_ID.lock().unwrap();
+        let current = *id;
+        *id += 1;
+        current
+    };
+    timer_id
+}
+
+/// Host function: schedule a timer and wait for completion or cancellation
+/// Returns true if completed, false if cancelled
+#[op2]
+async fn op_timerWait(timer_id: u32, delay_ms: u32) -> bool {
+    use tokio::time::{Duration, sleep};
+    use tokio::sync::oneshot;
+    
+    let (tx, rx) = oneshot::channel();
+    
+    // Store the cancellation sender
+    {
+        let mut cancellers = TIMER_CANCELLERS.lock().unwrap();
+        cancellers.insert(timer_id, tx);
+    }
+    
+    // Race between sleep and cancellation
+    tokio::select! {
+        _ = sleep(Duration::from_millis(delay_ms as u64)) => {
+            // Timer completed - remove from cancellers
+            let mut cancellers = TIMER_CANCELLERS.lock().unwrap();
+            cancellers.remove(&timer_id);
+            true
+        }
+        _ = rx => {
+            // Timer was cancelled
+            false
+        }
+    }
+}
+
+/// Host function: cancel a pending timer
+/// Returns true if the timer was found and cancelled
+#[op2(fast)]
+fn op_timerCancel(timer_id: u32) -> bool {
+    let mut cancellers = TIMER_CANCELLERS.lock().unwrap();
+    if let Some(sender) = cancellers.remove(&timer_id) {
+        // Send cancellation signal (ignore error if receiver already dropped)
+        let _ = sender.send(());
+        true
+    } else {
+        false
+    }
+}
+
+// ============================================================================
 // Filesystem Host Functions
 // ============================================================================
 
@@ -556,6 +621,28 @@ fn main() -> Result<(), AnyError> {
                 uri: "funee".to_string(),
             },
             op_watchStop(),
+        ),
+        // Timer host functions (internal - accessed via Deno.core.ops, not imports)
+        (
+            FuneeIdentifier {
+                name: "timerStart".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_timerStart(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "timerWait".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_timerWait(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "timerCancel".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_timerCancel(),
         ),
     ]);
     
