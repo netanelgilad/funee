@@ -44,11 +44,10 @@ export default function() {
   if (hasAdd) {
     const addRef = captured.references.get("add");
     log(`add reference: ${JSON.stringify(addRef)}`);
-    // Should be something like ["/path/to/other.ts", "add"]
-    log(`add ref is array: ${Array.isArray(addRef)}`);
-    log(`add ref length: ${addRef?.length}`);
-    log(`add ref[0] contains 'other.ts': ${addRef?.[0]?.includes('other.ts')}`);
-    log(`add ref[1] is 'add': ${addRef?.[1] === 'add'}`);
+    // Reference format is { uri: string, name: string }
+    log(`add ref is object: ${typeof addRef === 'object' && addRef !== null}`);
+    log(`add ref.uri contains 'other.ts': ${addRef?.uri?.includes('other.ts')}`);
+    log(`add ref.name is 'add': ${addRef?.name === 'add'}`);
   }
   
   // Also verify the expression is valid

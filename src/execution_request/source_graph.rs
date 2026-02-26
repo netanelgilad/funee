@@ -8,7 +8,7 @@ use super::{
 use crate::funee_identifier::FuneeIdentifier;
 use petgraph::{
     stable_graph::NodeIndex,
-    visit::{Dfs, VisitMap},
+    visit::{Dfs, EdgeRef, VisitMap},
     Graph,
 };
 use relative_path::RelativePath;
@@ -282,8 +282,12 @@ impl SourceGraph {
 
                 if !definitions_index.contains_key(&reference.1) {
                     // Track macro functions for later macro expansion
+                    // Use the resolved_uri, not the original reference URI
                     if matches!(&declaration, Declaration::Macro(_)) {
-                        macro_functions.insert(reference.1.clone());
+                        macro_functions.insert(FuneeIdentifier {
+                            name: reference.1.name.clone(),
+                            uri: resolved_uri.clone(),
+                        });
                     }
                     
                     let node_index = graph.add_node((resolved_uri, declaration));
@@ -346,20 +350,31 @@ impl SourceGraph {
             };
 
             if let Some(expr) = expr_to_check {
-                // Build current scope references map
-                let current_scope_refs: HashMap<String, FuneeIdentifier> =
-                    get_references_from_declaration(&mut declaration_clone, (globals, unresolved_mark))
-                        .into_iter()
-                        .map(|name| {
-                            (
-                                name.clone(),
-                                FuneeIdentifier {
-                                    name: name.clone(),
-                                    uri: source_uri.clone(),
-                                },
-                            )
-                        })
-                        .collect();
+                // Build current scope references map from the graph edges
+                // Each outgoing edge from this node represents a resolved reference
+                // The edge label is the local name, the target node contains the resolved URI
+                let mut current_scope_refs: HashMap<String, FuneeIdentifier> = HashMap::new();
+                for edge in self.graph.edges(nx) {
+                    let local_name = edge.weight().clone();
+                    let target_node = edge.target();
+                    let (target_uri, target_decl) = &self.graph[target_node];
+                    
+                    // Get the export name - for most declarations it's the same as local name
+                    // but we extract it from the target node's declaration
+                    let export_name = match target_decl {
+                        Declaration::FnDecl(fn_decl) => fn_decl.ident.sym.to_string(),
+                        Declaration::HostFn(name) => name.clone(),
+                        _ => local_name.clone(),
+                    };
+                    
+                    current_scope_refs.insert(
+                        local_name,
+                        FuneeIdentifier {
+                            name: export_name,
+                            uri: target_uri.clone(),
+                        },
+                    );
+                }
 
                 // Find all macro calls in this expression
                 let macro_calls = find_macro_calls(&expr, &self.macro_functions, &current_scope_refs);
@@ -371,7 +386,6 @@ impl SourceGraph {
                         let closure = capture_closure(
                             arg_expr.clone(),
                             &current_scope_refs,
-                            (globals, unresolved_mark),
                         );
 
                         // Create a unique name for this closure argument

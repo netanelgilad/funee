@@ -198,12 +198,42 @@ impl SourceGraph {
         // Convert macro function to code string
         let macro_fn_code = self.expr_to_code(macro_fn);
 
-        // Build arguments as MacroClosures, resolving identifiers to their definitions
+        // Get the macro name from the callee for looking up ClosureValue nodes
+        let macro_name = match &call_expr.callee {
+            Callee::Expr(callee_expr) => {
+                if let Expr::Ident(ident) = callee_expr.as_ref() {
+                    ident.sym.to_string()
+                } else {
+                    String::new()
+                }
+            }
+            _ => String::new(),
+        };
+
+        // Build arguments as MacroClosures, using ClosureValue nodes for references
         let args: Vec<MacroClosure> = call_expr
             .args
             .iter()
-            .map(|arg| {
-                // If the argument is an identifier, resolve it to its definition
+            .enumerate()
+            .map(|(arg_idx, arg)| {
+                // Look for a ClosureValue node that was created for this argument
+                let closure_edge_name = format!("{}_arg{}", macro_name, arg_idx);
+                let references = if let Some(closure_node) = edge_targets.get(&(source_node, closure_edge_name)) {
+                    // Found the ClosureValue node - get its references
+                    if let Declaration::ClosureValue(closure) = &self.graph[*closure_node].1 {
+                        closure
+                            .references
+                            .iter()
+                            .map(|(name, id)| (name.clone(), (id.uri.clone(), id.name.clone())))
+                            .collect()
+                    } else {
+                        HashMap::new()
+                    }
+                } else {
+                    HashMap::new()
+                };
+
+                // Get the expression code
                 let expr_code = if let Expr::Ident(ident) = &*arg.expr {
                     let ident_name = ident.sym.to_string();
                     // Look up what this identifier refers to
@@ -223,7 +253,7 @@ impl SourceGraph {
                 };
                 MacroClosure {
                     expression: expr_code,
-                    references: HashMap::new(), // TODO: track actual references
+                    references,
                 }
             })
             .collect();

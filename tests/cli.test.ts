@@ -848,8 +848,9 @@ describe('funee CLI', () => {
       expect(stdout).toContain('references size: 1');
       
       // The reference should point to other.ts with export name 'add'
-      expect(stdout).toContain("add ref[0] contains 'other.ts': true");
-      expect(stdout).toContain("add ref[1] is 'add': true");
+      // Reference format is { uri: string, name: string }
+      expect(stdout).toContain("add ref.uri contains 'other.ts': true");
+      expect(stdout).toContain("add ref.name is 'add': true");
     });
 
     // ==================== FUNCTION UTILITIES ====================
