@@ -2397,4 +2397,328 @@ describe('funee CLI', () => {
       expect(stdout).toContain('has query: yes');
     }, 30000);
   });
+
+  describe('watch mode - closure reference watching', () => {
+    /**
+     * Watch mode test suite
+     * 
+     * Tests that runScenariosWatch uses closure references to determine
+     * which files to watch. Full watch loop testing is limited because
+     * the funee runtime doesn't have setTimeout for the polling loop.
+     */
+
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+
+    // Create unique test directory
+    const createTestDir = (): string => {
+      const testDir = path.join(os.tmpdir(), `funee-watch-test-${Date.now()}`);
+      fs.mkdirSync(testDir, { recursive: true });
+      return testDir;
+    };
+
+    // Helper to wait for specific output in process with timeout
+    const waitForOutput = (proc: ReturnType<typeof spawn>, pattern: string | RegExp, timeoutMs = 5000): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        let output = '';
+        const timeout = setTimeout(() => {
+          proc.kill('SIGTERM');
+          resolve(output);  // Resolve with collected output instead of rejecting
+        }, timeoutMs);
+
+        const checkOutput = (data: Buffer) => {
+          const text = data.toString();
+          output += text;
+          const matches = typeof pattern === 'string' ? text.includes(pattern) : pattern.test(text);
+          if (matches) {
+            clearTimeout(timeout);
+            resolve(output);
+          }
+        };
+
+        proc.stdout?.on('data', checkOutput);
+        proc.stderr?.on('data', checkOutput);
+        
+        proc.on('close', () => {
+          clearTimeout(timeout);
+          resolve(output);
+        });
+      });
+    };
+
+    it('extracts file URIs from closure references and starts watchers', async () => {
+      /**
+       * Tests that runScenariosWatch:
+       * 1. Extracts file URIs from closure references
+       * 2. Reports the correct number of files to watch
+       * 3. Runs the initial scenarios successfully
+       * 
+       * Note: Full watch loop testing is limited because funee runtime
+       * doesn't have setTimeout for the polling loop.
+       */
+      const testDir = createTestDir();
+      
+      try {
+        // Create dependency file
+        const usedTs = path.join(testDir, 'used.ts');
+        fs.writeFileSync(usedTs, `export const usedFn = () => "used v1";`);
+
+        // Create unused file (not referenced in closure)
+        const unusedTs = path.join(testDir, 'unused.ts');
+        fs.writeFileSync(unusedTs, `export const unusedFn = () => "unused v1";`);
+
+        // Create scenario with manual Closure construction (includes references)
+        const scenarioTs = path.join(testDir, 'scenario.ts');
+        fs.writeFileSync(scenarioTs, `
+import { log, scenario, runScenariosWatch, assertThat, is, Closure } from "funee";
+import { usedFn } from "./used.ts";
+
+const scenarios = [
+  scenario({
+    description: "uses usedFn from import",
+    verify: {
+      expression: async () => {
+        const result = usedFn();
+        await assertThat(result.startsWith("used"), is(true));
+      },
+      references: new Map([
+        ["usedFn", { uri: "${usedTs}", name: "usedFn" }]
+      ]),
+    } as Closure<() => Promise<unknown>>,
+  }),
+];
+
+export default async () => {
+  await runScenariosWatch(scenarios, { logger: log });
+};
+`);
+
+        // Start watch mode
+        const proc = spawn(FUNEE_BIN, [scenarioTs], {
+          cwd: testDir,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        // Collect output until process ends or times out
+        const output = await waitForOutput(proc, 'Watching for changes', 10000);
+        
+        // Verify watch mode started with correct file count
+        expect(output).toContain('Watch mode started');
+        expect(output).toContain('Watching 1 file(s) from closure references');
+        
+        // Verify initial scenarios ran successfully
+        expect(output).toContain('uses usedFn from import');
+        expect(output).toContain('✅');
+        
+        // Clean up
+        proc.kill('SIGTERM');
+        
+      } finally {
+        fs.rmSync(testDir, { recursive: true, force: true });
+      }
+    }, 15000);
+
+    it('watches only files from closure references, not all imports', async () => {
+      /**
+       * Tests that watch mode only watches files that are in the closure's
+       * references map, not just any imported file.
+       * 
+       * Setup:
+       * - used.ts: exports usedFn (in closure references)
+       * - unused.ts: exports unusedFn (imported but NOT in closure references)
+       * 
+       * Expected: Watch mode should report 1 file (used.ts), not 2.
+       */
+      const testDir = createTestDir();
+      
+      try {
+        // Create both files
+        const usedTs = path.join(testDir, 'used.ts');
+        fs.writeFileSync(usedTs, `export const usedFn = () => "used";`);
+        
+        const unusedTs = path.join(testDir, 'unused.ts');
+        fs.writeFileSync(unusedTs, `export const unusedFn = () => "unused";`);
+
+        // Create scenario that imports both but only references usedFn in closure
+        const scenarioTs = path.join(testDir, 'scenario.ts');
+        fs.writeFileSync(scenarioTs, `
+import { log, scenario, runScenariosWatch, assertThat, is, Closure } from "funee";
+import { usedFn } from "./used.ts";
+import { unusedFn } from "./unused.ts"; // imported but not in closure references
+
+const scenarios = [
+  scenario({
+    description: "only uses usedFn in closure",
+    verify: {
+      expression: async () => {
+        const result = usedFn();
+        await assertThat(result === "used", is(true));
+      },
+      // Only usedFn is in references, not unusedFn
+      references: new Map([
+        ["usedFn", { uri: "${usedTs}", name: "usedFn" }]
+      ]),
+    } as Closure<() => Promise<unknown>>,
+  }),
+];
+
+export default async () => {
+  await runScenariosWatch(scenarios, { logger: log });
+};
+`);
+
+        const proc = spawn(FUNEE_BIN, [scenarioTs], {
+          cwd: testDir,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        const output = await waitForOutput(proc, 'Watching for changes', 10000);
+        
+        // Should watch exactly 1 file (used.ts), not 2
+        expect(output).toContain('Watching 1 file(s) from closure references');
+        
+        proc.kill('SIGTERM');
+        
+      } finally {
+        fs.rmSync(testDir, { recursive: true, force: true });
+      }
+    }, 15000);
+
+    it('maps files to scenarios correctly for selective re-runs', async () => {
+      /**
+       * Tests that when multiple scenarios have different closure references,
+       * each file is correctly mapped to its associated scenarios.
+       * 
+       * Setup:
+       * - dep-a.ts: used by scenario A only
+       * - dep-b.ts: used by scenario B only
+       * - shared.ts: used by both scenarios
+       * 
+       * Expected: Watch mode should report 3 files total.
+       */
+      const testDir = createTestDir();
+      
+      try {
+        // Create dependency files
+        const depA = path.join(testDir, 'dep-a.ts');
+        fs.writeFileSync(depA, `export const depA = () => "a";`);
+        
+        const depB = path.join(testDir, 'dep-b.ts');
+        fs.writeFileSync(depB, `export const depB = () => "b";`);
+        
+        const shared = path.join(testDir, 'shared.ts');
+        fs.writeFileSync(shared, `export const shared = () => "shared";`);
+
+        // Create scenario with two scenarios having different references
+        const scenarioTs = path.join(testDir, 'scenarios.ts');
+        fs.writeFileSync(scenarioTs, `
+import { log, scenario, runScenariosWatch, assertThat, is, Closure } from "funee";
+import { depA } from "./dep-a.ts";
+import { depB } from "./dep-b.ts";
+import { shared } from "./shared.ts";
+
+const scenarios = [
+  scenario({
+    description: "scenario A",
+    verify: {
+      expression: async () => {
+        await assertThat(depA() + shared(), is("ashared"));
+      },
+      references: new Map([
+        ["depA", { uri: "${depA}", name: "depA" }],
+        ["shared", { uri: "${shared}", name: "shared" }]
+      ]),
+    } as Closure<() => Promise<unknown>>,
+  }),
+  scenario({
+    description: "scenario B",
+    verify: {
+      expression: async () => {
+        await assertThat(depB() + shared(), is("bshared"));
+      },
+      references: new Map([
+        ["depB", { uri: "${depB}", name: "depB" }],
+        ["shared", { uri: "${shared}", name: "shared" }]
+      ]),
+    } as Closure<() => Promise<unknown>>,
+  }),
+];
+
+export default async () => {
+  await runScenariosWatch(scenarios, { logger: log });
+};
+`);
+
+        const proc = spawn(FUNEE_BIN, [scenarioTs], {
+          cwd: testDir,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        const output = await waitForOutput(proc, 'Watching for changes', 10000);
+        
+        // Should watch 3 unique files (dep-a, dep-b, shared)
+        expect(output).toContain('Watching 3 file(s) from closure references');
+        
+        // Both scenarios should run in initial pass
+        expect(output).toContain('scenario A');
+        expect(output).toContain('scenario B');
+        expect(output).toContain('2 passed');
+        
+        proc.kill('SIGTERM');
+        
+      } finally {
+        fs.rmSync(testDir, { recursive: true, force: true });
+      }
+    }, 15000);
+
+    it('handles scenarios with no local file references gracefully', async () => {
+      /**
+       * Tests that when scenarios have no local file references
+       * (e.g., only using inline code or funee imports), watch mode
+       * runs scenarios once and exits gracefully.
+       */
+      const testDir = createTestDir();
+      
+      try {
+        const scenarioTs = path.join(testDir, 'scenario.ts');
+        fs.writeFileSync(scenarioTs, `
+import { log, scenario, runScenariosWatch, assertThat, is, Closure } from "funee";
+
+const scenarios = [
+  scenario({
+    description: "inline scenario with no external deps",
+    verify: {
+      expression: async () => {
+        await assertThat(2 + 2, is(4));
+      },
+      references: new Map(), // No external references
+    } as Closure<() => Promise<unknown>>,
+  }),
+];
+
+export default async () => {
+  await runScenariosWatch(scenarios, { logger: log });
+};
+`);
+
+        const proc = spawn(FUNEE_BIN, [scenarioTs], {
+          cwd: testDir,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        // Wait for the "Results" line which comes after scenarios run
+        const output = await waitForOutput(proc, 'Results:', 10000);
+        
+        // Should warn and run once without watch mode
+        expect(output).toContain('No local file references found');
+        expect(output).toContain('Running scenarios once without watch mode');
+        expect(output).toContain('inline scenario');
+        expect(output).toContain('1 passed');
+        
+      } finally {
+        fs.rmSync(testDir, { recursive: true, force: true });
+      }
+    }, 15000);
+  });
 });

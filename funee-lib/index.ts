@@ -514,7 +514,7 @@ export {
 // Validator - Test Scenario Execution
 // ============================================================================
 
-export type { Scenario, ScenarioResult, RunScenariosOptions, ScenarioLogger, WatchOptions } from "./validator/index.ts";
+export type { Scenario, ScenarioResult, RunScenariosOptions, ScenarioLogger, ScenarioWatchOptions } from "./validator/index.ts";
 export { scenario, runScenarios, runScenariosWatch } from "./validator/index.ts";
 
 // ============================================================================

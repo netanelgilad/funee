@@ -5,7 +5,7 @@
  * and has the correct type signature.
  */
 
-import { log, runScenariosWatch, WatchOptions } from "funee";
+import { log, runScenariosWatch, ScenarioWatchOptions } from "funee";
 
 export default async () => {
   // Test 1: runScenariosWatch is exported
@@ -15,10 +15,9 @@ export default async () => {
   log(`runScenariosWatch is function: ${typeof runScenariosWatch === 'function' ? 'yes' : 'no'}`);
   
   // Test 3: WatchOptions type check (compile-time verification)
-  // If this compiles, the type is correct
-  const _options: WatchOptions = {
+  // watchPaths is no longer required - watch mode uses closure references
+  const _options: ScenarioWatchOptions = {
     logger: log,
-    watchPaths: ["src/"],
     debounceMs: 100,
     clearOnRerun: true,
     concurrency: 5,
