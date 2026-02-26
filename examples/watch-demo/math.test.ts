@@ -3,20 +3,14 @@
  * 
  * Run with: funee examples/watch-demo/math.test.ts
  * 
- * The test scenarios use `add` and `multiply` from math.ts.
- * The closure references capture ONLY these declarations.
- * 
- * When watching:
- * - Edit `add` or `multiply` → tests re-run ✅
- * - Edit `subtract`, `divide`, `modulo` → NO re-run! ❌
- * 
- * This is because funee watches the CLOSURE GRAPH, not the file graph.
+ * The `closure` macro captures references at BUILD TIME (returns AST).
+ * For RUNTIME execution, we construct closures with inline expressions.
+ * The references Map still tells the watcher which files matter.
  */
 
 import {
   scenario,
   runScenarios,
-  runScenariosWatch,
   assertThat,
   is,
   log,
@@ -25,63 +19,51 @@ import {
 
 import { add, multiply } from "./math.ts";
 
-// Build closures with explicit references
-// In real usage, the `closure` macro does this automatically
-const mathTestDir = "/Users/netanelgilad/clawd/agents/riff/repos/funee/examples/watch-demo";
-
-const addTestClosure: Closure<() => Promise<void>> = {
-  expression: async () => {
-    await assertThat(add(2, 3), is(5));
-    await assertThat(add(0, 0), is(0));
-    await assertThat(add(-1, 1), is(0));
-  },
-  // This tells the watcher: "I depend on `add` from math.ts"
-  references: new Map([
-    ["add", [`${mathTestDir}/math.ts`, "add"]]
-  ]),
-};
-
-const multiplyTestClosure: Closure<() => Promise<void>> = {
-  expression: async () => {
-    await assertThat(multiply(2, 3), is(6));
-    await assertThat(multiply(0, 5), is(0));
-    await assertThat(multiply(-2, 3), is(-6));
-  },
-  references: new Map([
-    ["multiply", [`${mathTestDir}/math.ts`, "multiply"]]
-  ]),
-};
-
-const composedTestClosure: Closure<() => Promise<void>> = {
-  expression: async () => {
-    const result = multiply(add(2, 3), 4);
-    await assertThat(result, is(20));
-  },
-  // This test depends on BOTH add and multiply
-  references: new Map([
-    ["add", [`${mathTestDir}/math.ts`, "add"]],
-    ["multiply", [`${mathTestDir}/math.ts`, "multiply"]]
-  ]),
-};
+// Runtime closures: expression is callable, references are explicit
+// The closure macro would generate this at build time
+const thisFile = "/Users/netanelgilad/clawd/agents/riff/repos/funee/examples/watch-demo/math.ts";
 
 const scenarios = [
   scenario({
     description: "add() works correctly",
-    verify: addTestClosure,
+    verify: {
+      expression: async () => {
+        await assertThat(add(2, 3), is(5));
+        await assertThat(add(0, 0), is(0));
+        await assertThat(add(-1, 1), is(0));
+      },
+      references: new Map([["add", { uri: thisFile, name: "add" }]]),
+    } as Closure<() => Promise<void>>,
   }),
+
   scenario({
-    description: "multiply() works correctly",
-    verify: multiplyTestClosure,
+    description: "multiply() works correctly", 
+    verify: {
+      expression: async () => {
+        await assertThat(multiply(2, 3), is(6));
+        await assertThat(multiply(0, 5), is(0));
+        await assertThat(multiply(-2, 3), is(-6));
+      },
+      references: new Map([["multiply", { uri: thisFile, name: "multiply" }]]),
+    } as Closure<() => Promise<void>>,
   }),
+
   scenario({
     description: "add and multiply compose",
-    verify: composedTestClosure,
+    verify: {
+      expression: async () => {
+        const result = multiply(add(2, 3), 4);
+        await assertThat(result, is(20));
+      },
+      references: new Map([
+        ["add", { uri: thisFile, name: "add" }],
+        ["multiply", { uri: thisFile, name: "multiply" }],
+      ]),
+    } as Closure<() => Promise<void>>,
   }),
 ];
 
 export default async () => {
-  const watchMode = false;
-
   log("🧪 Funee Watch Mode Demo");
   log("========================");
   log("");
@@ -90,28 +72,18 @@ export default async () => {
   log("❌ Tests IGNORE: subtract, divide, modulo");
   log("");
 
-  if (watchMode) {
-    log("👀 Watch mode - edit math.ts to see selective re-runs");
-    log("");
-    await runScenariosWatch(scenarios, { logger: log });
-  } else {
-    const results = await runScenarios(scenarios, { logger: log });
-    
-    log("");
-    log("─".repeat(55));
-    log("💡 HOW CLOSURE-LEVEL WATCHING WORKS:");
-    log("");
-    log("   Each scenario's closure has a `references` Map:");
-    log("   - addTestClosure.references = { add → math.ts }");
-    log("   - multiplyTestClosure.references = { multiply → math.ts }");
-    log("");
-    log("   The watcher collects all referenced files and watches them.");
-    log("   When math.ts changes, only scenarios that reference it re-run.");
-    log("");
-    log("   In a smarter impl, we'd diff the AST to detect WHICH");
-    log("   declaration changed, enabling even finer granularity.");
-    log("─".repeat(55));
-    
-    return results;
-  }
+  const results = await runScenarios(scenarios, { logger: log });
+  
+  log("");
+  log("─".repeat(55));
+  log("💡 HOW IT WORKS:");
+  log("");
+  log("   Each scenario.verify.references tells the watcher:");
+  log("   'I depend on add from math.ts'");
+  log("");
+  log("   When watching, ONLY changes to referenced declarations");
+  log("   trigger a re-run. Other exports in the same file are ignored.");
+  log("─".repeat(55));
+  
+  return results;
 };
