@@ -811,6 +811,47 @@ describe('funee CLI', () => {
       expect(stdout).toContain('AST type: ArrowFunctionExpression');
     });
 
+    it('closure macro captures cross-file references', async () => {
+      /**
+       * Bug test: closure macro should capture references to imported functions
+       * 
+       * When the closure macro captures an expression that references a function
+       * imported from another file, that reference MUST be included in the
+       * Closure's references Map.
+       * 
+       * Input:
+       *   import { add } from "./other.ts";
+       *   const c = closure(() => () => add(1, 2));
+       * 
+       * Expected output:
+       *   const c = {
+       *     expression: () => () => add(1, 2),
+       *     references: new Map([
+       *       ["add", ["/absolute/path/to/other.ts", "add"]]
+       *     ])
+       *   };
+       * 
+       * Currently FAILS: The macro doesn't detect that 'add' is an imported symbol
+       * and fails with "declaration_X is not defined" or produces empty references.
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['macro/cross-file-ref/entry.ts']);
+      
+      // Should execute without errors
+      expect(exitCode).toBe(0);
+      
+      // Basic type checks
+      expect(stdout).toContain('captured type: object');
+      expect(stdout).toContain('captured.references is Map: true');
+      
+      // CRITICAL: The 'add' import from other.ts must be in references
+      expect(stdout).toContain("has 'add' reference: true");
+      expect(stdout).toContain('references size: 1');
+      
+      // The reference should point to other.ts with export name 'add'
+      expect(stdout).toContain("add ref[0] contains 'other.ts': true");
+      expect(stdout).toContain("add ref[1] is 'add': true");
+    });
+
     // ==================== FUNCTION UTILITIES ====================
 
     it('curry binds first argument to a function', async () => {
