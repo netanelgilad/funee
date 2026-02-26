@@ -654,3 +654,15 @@ export type {
 } from "./watcher/index.ts";
 
 export { watchFile, watchDirectory } from "./watcher/index.ts";
+
+// ============================================================================
+// HTTP Server - Deno-style serve() API
+// ============================================================================
+
+export type {
+  RequestHandler,
+  ServeOptions,
+  Server,
+} from "./server/index.ts";
+
+export { serve } from "./server/index.ts";

@@ -38,3 +38,9 @@ hex = "0.4"
 
 # File watching
 notify = { version = "6.1", default-features = false, features = ["macos_fsevent"] }
+
+# HTTP server
+hyper = { version = "1.0", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server", "server-auto"] }
+http-body-util = "0.1"
+bytes = "1.0"

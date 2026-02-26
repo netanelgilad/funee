@@ -3053,6 +3053,158 @@ export default async () => {
       expect(stdout).toContain('default is 500: true');
       expect(stdout).toContain('on-error test complete');
     });
+
+    it('server sends streaming response', async () => {
+      /**
+       * Tests streaming response:
+       * - Server can send chunked/streaming response using ReadableStream
+       * - Client receives all chunks in order
+       * - Can read stream using getReader()
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/streaming-response.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('response ok: true');
+      expect(stdout).toContain('text is correct: true');
+      expect(stdout).toContain('chunks correct: true');
+      expect(stdout).toContain('streaming-response test complete');
+    });
+
+    it('server handles large request/response bodies (1MB+)', async () => {
+      /**
+       * Tests large body handling:
+       * - Server handles large request bodies (1MB+)
+       * - Server can send large response bodies
+       * - Data integrity is maintained
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/large-body.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('echo response ok: true');
+      expect(stdout).toContain('echo length correct: true');
+      expect(stdout).toContain('echo content correct: true');
+      expect(stdout).toContain('large response ok: true');
+      expect(stdout).toContain('large length correct: true');
+      expect(stdout).toContain('large content correct: true');
+      expect(stdout).toContain('large-body test complete');
+    });
+
+    it('server handles multiple requests on keep-alive connection', async () => {
+      /**
+       * Tests keep-alive connections:
+       * - Multiple requests can be made
+       * - Connection: keep-alive header is respected
+       * - Server tracks request count correctly
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/keep-alive.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('all requests handled: true');
+      expect(stdout).toContain('sequential results: true');
+      expect(stdout).toContain('keep-alive respected: true');
+      expect(stdout).toContain('keep-alive test complete');
+    });
+
+    it('server handles request timeout and abort', async () => {
+      /**
+       * Tests timeout handling:
+       * - Client can set timeout on fetch requests
+       * - AbortController can cancel requests
+       * - Server handles slow requests gracefully
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/timeout.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('fast is correct: true');
+      expect(stdout).toContain('slow is correct: true');
+      expect(stdout).toContain('abort threw error: true');
+      expect(stdout).toContain('timeout test complete');
+    });
+
+    it('server returns binary data (as hex encoding)', async () => {
+      /**
+       * Tests binary response:
+       * - Server can return binary-like data as hex encoding
+       * - Content-Type is set correctly
+       * - Binary data integrity is maintained
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/binary-response.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('image response ok: true');
+      expect(stdout).toContain('image type correct: true');
+      expect(stdout).toContain('image length correct: true');
+      expect(stdout).toContain('png signature correct: true');
+      expect(stdout).toContain('binary response ok: true');
+      expect(stdout).toContain('binary type correct: true');
+      expect(stdout).toContain('binary length correct: true');
+      expect(stdout).toContain('binary integrity: true');
+      expect(stdout).toContain('binary-response test complete');
+    });
+
+    it('server sets CORS headers correctly', async () => {
+      /**
+       * Tests CORS headers:
+       * - Server can set CORS headers
+       * - Access-Control-Allow-Origin works
+       * - Preflight OPTIONS requests handled
+       * - Access-Control-Allow-Methods/Headers work
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/cors-headers.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('allow-origin correct: true');
+      expect(stdout).toContain('allow-methods correct: true');
+      expect(stdout).toContain('allow-headers correct: true');
+      expect(stdout).toContain('preflight is 204: true');
+      expect(stdout).toContain('preflight origin correct: true');
+      expect(stdout).toContain('max-age correct: true');
+      expect(stdout).toContain('cors-headers test complete');
+    });
+
+    it('server returns redirect responses (301, 302, 307)', async () => {
+      /**
+       * Tests redirect responses:
+       * - Server can return 301/302/307 redirects
+       * - Location header is set correctly
+       * - Client can follow or not follow redirects
+       * - Redirect chains work
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/redirect.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('301 redirected: true');
+      expect(stdout).toContain('301 followed: true');
+      expect(stdout).toContain('302 redirected: true');
+      expect(stdout).toContain('302 followed: true');
+      expect(stdout).toContain('manual is 302: true');
+      expect(stdout).toContain('location correct: true');
+      expect(stdout).toContain('chain followed: true');
+      expect(stdout).toContain('307 followed: true');
+      expect(stdout).toContain('redirect test complete');
+    });
+
+    it('server parses form data (URL-encoded and multipart)', async () => {
+      /**
+       * Tests form data parsing:
+       * - Server can parse URL-encoded form data
+       * - Server can parse multipart form data
+       * - req.formData() returns FormData object
+       * - File uploads work with multipart
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/form-data.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('urlencoded response ok: true');
+      expect(stdout).toContain('name correct: true');
+      expect(stdout).toContain('email correct: true');
+      expect(stdout).toContain('multipart response ok: true');
+      expect(stdout).toContain('multipart name correct: true');
+      expect(stdout).toContain('multipart hasFile: true');
+      expect(stdout).toContain('file name correct: true');
+      expect(stdout).toContain('file size correct: true');
+      expect(stdout).toContain('form-data test complete');
+    });
   });
 
   // ==================== FETCH API ====================

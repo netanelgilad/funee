@@ -530,6 +530,413 @@ fn op_watchStop(watcher_id: u32) {
     WATCHERS.lock().unwrap().remove(&watcher_id);
 }
 
+// ============================================================================
+// HTTP Server Host Functions
+// ============================================================================
+
+use std::net::SocketAddr;
+use hyper::{Request as HyperRequest, Response as HyperResponse, body::Incoming, server::conn::http1, Method, StatusCode};
+use hyper::service::service_fn;
+use hyper_util::rt::TokioIo;
+use http_body_util::{BodyExt, Full};
+use tokio::net::TcpListener;
+use tokio::sync::{mpsc, oneshot, watch};
+use bytes::Bytes;
+
+/// Request info sent to JavaScript
+#[derive(Serialize, Clone)]
+struct ServerRequestInfo {
+    request_id: u32,
+    method: String,
+    url: String,
+    headers: Vec<(String, String)>,
+    has_body: bool,
+}
+
+/// Pending request awaiting response
+struct PendingRequest {
+    body: Option<String>,
+    response_sender: oneshot::Sender<HyperResponse<Full<Bytes>>>,
+}
+
+/// Server state
+struct HttpServerState {
+    shutdown_tx: Option<oneshot::Sender<()>>,
+    conn_shutdown_tx: watch::Sender<bool>,
+    active_connections: Arc<std::sync::atomic::AtomicU32>,
+    request_rx: mpsc::Receiver<(ServerRequestInfo, PendingRequest)>,
+    pending_requests: HashMap<u32, PendingRequest>,
+    port: u16,
+    hostname: String,
+}
+
+/// Global storage for servers
+static SERVERS: LazyLock<Mutex<HashMap<u32, HttpServerState>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static NEXT_SERVER_ID: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+static NEXT_REQUEST_ID: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+
+/// Storage for request bodies (shared between server task and ops)
+static REQUEST_BODIES: LazyLock<Mutex<HashMap<u32, String>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Host function: start HTTP server
+/// Returns JSON with server_id, port, hostname
+/// 
+/// Note: Uses synchronous bind so port is available immediately,
+/// then converts to async TcpListener for the server loop.
+#[op2]
+#[string]
+fn op_serverStart(port: u32, #[string] hostname: &str) -> Result<String, JsErrorBox> {
+    let addr: SocketAddr = format!("{}:{}", hostname, port)
+        .parse()
+        .map_err(|e| JsErrorBox::generic(format!("Invalid address: {}", e)))?;
+    
+    // Bind synchronously to get the port immediately
+    let std_listener = std::net::TcpListener::bind(addr)
+        .map_err(|e| JsErrorBox::generic(format!("Failed to bind: {}", e)))?;
+    
+    // Set non-blocking for tokio
+    std_listener.set_nonblocking(true)
+        .map_err(|e| JsErrorBox::generic(format!("Failed to set non-blocking: {}", e)))?;
+    
+    let actual_addr = std_listener.local_addr()
+        .map_err(|e| JsErrorBox::generic(format!("Failed to get address: {}", e)))?;
+    
+    let actual_port = actual_addr.port();
+    let actual_hostname = hostname.to_string();
+    
+    // Convert to tokio TcpListener
+    let listener = TcpListener::from_std(std_listener)
+        .map_err(|e| JsErrorBox::generic(format!("Failed to create async listener: {}", e)))?;
+    
+    // Create channels for communication
+    let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
+    let (conn_shutdown_tx, conn_shutdown_rx) = watch::channel(false);
+    let active_connections = Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let (request_tx, request_rx) = mpsc::channel::<(ServerRequestInfo, PendingRequest)>(100);
+    
+    let server_id = {
+        let mut id = NEXT_SERVER_ID.lock().unwrap();
+        let current = *id;
+        *id += 1;
+        current
+    };
+    
+    // Clone for the server task
+    let request_tx_clone = request_tx.clone();
+    let active_connections_clone = active_connections.clone();
+    
+    // Spawn server task
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = &mut shutdown_rx => {
+                    break;
+                }
+                result = listener.accept() => {
+                    match result {
+                        Ok((stream, _)) => {
+                            let io = TokioIo::new(stream);
+                            let tx = request_tx_clone.clone();
+                            let mut conn_shutdown = conn_shutdown_rx.clone();
+                            let active_conns = active_connections_clone.clone();
+                            
+                            // Increment active connections
+                            active_conns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                            
+                            tokio::spawn(async move {
+                                let service = service_fn(|req: HyperRequest<Incoming>| {
+                                    let tx = tx.clone();
+                                    async move {
+                                        // Generate request ID
+                                        let request_id = {
+                                            let mut id = NEXT_REQUEST_ID.lock().unwrap();
+                                            let current = *id;
+                                            *id += 1;
+                                            current
+                                        };
+                                        
+                                        // Extract request info
+                                        let method = req.method().to_string();
+                                        let uri = req.uri();
+                                        // Only send path+query, JS will construct full URL
+                                        let url = format!("{}{}", 
+                                            uri.path(),
+                                            uri.query().map(|q| format!("?{}", q)).unwrap_or_default()
+                                        );
+                                        let headers: Vec<(String, String)> = req.headers()
+                                            .iter()
+                                            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+                                            .collect();
+                                        let has_body = req.method() != Method::GET && req.method() != Method::HEAD;
+                                        
+                                        // Read body
+                                        let body_bytes = req.collect().await
+                                            .map(|b| b.to_bytes())
+                                            .unwrap_or_default();
+                                        let body_str = String::from_utf8_lossy(&body_bytes).to_string();
+                                        
+                                        // Store body for later retrieval
+                                        {
+                                            REQUEST_BODIES.lock().unwrap().insert(request_id, body_str.clone());
+                                        }
+                                        
+                                        let info = ServerRequestInfo {
+                                            request_id,
+                                            method,
+                                            url,
+                                            headers,
+                                            has_body: !body_str.is_empty(),
+                                        };
+                                        
+                                        // Create response channel
+                                        let (resp_tx, resp_rx) = oneshot::channel();
+                                        
+                                        let pending = PendingRequest {
+                                            body: Some(body_str),
+                                            response_sender: resp_tx,
+                                        };
+                                        
+                                        // Send to accept queue
+                                        if tx.send((info, pending)).await.is_err() {
+                                            return Ok::<_, hyper::Error>(HyperResponse::builder()
+                                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                                .body(Full::new(Bytes::from("Server shutting down")))
+                                                .unwrap());
+                                        }
+                                        
+                                        // Wait for response from JavaScript
+                                        match resp_rx.await {
+                                            Ok(response) => Ok(response),
+                                            Err(_) => Ok(HyperResponse::builder()
+                                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                                .body(Full::new(Bytes::from("Request dropped")))
+                                                .unwrap()),
+                                        }
+                                    }
+                                });
+                                
+                                // Serve the connection with graceful shutdown support
+                                let conn = http1::Builder::new()
+                                    // Disable keep-alive so connections close after response
+                                    .keep_alive(false)
+                                    .serve_connection(io, service);
+                                tokio::pin!(conn);
+                                
+                                loop {
+                                    tokio::select! {
+                                        result = conn.as_mut() => {
+                                            if let Err(e) = result {
+                                                // Ignore "connection reset by peer" errors during shutdown
+                                                let err_str = e.to_string();
+                                                if !err_str.contains("connection reset") && 
+                                                   !err_str.contains("broken pipe") {
+                                                    eprintln!("HTTP connection error: {}", e);
+                                                }
+                                            }
+                                            break;
+                                        }
+                                        _ = conn_shutdown.changed() => {
+                                            if *conn_shutdown.borrow() {
+                                                // Gracefully shutdown - finish current request, then close
+                                                conn.as_mut().graceful_shutdown();
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Decrement active connections
+                                active_conns.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                            });
+                        }
+                        Err(e) => {
+                            eprintln!("Accept error: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Store server state
+    let state = HttpServerState {
+        shutdown_tx: Some(shutdown_tx),
+        conn_shutdown_tx,
+        active_connections,
+        request_rx,
+        pending_requests: HashMap::new(),
+        port: actual_port,
+        hostname: actual_hostname.clone(),
+    };
+    
+    SERVERS.lock().unwrap().insert(server_id, state);
+    
+    Ok(serde_json::json!({
+        "server_id": server_id,
+        "port": actual_port,
+        "hostname": actual_hostname,
+    }).to_string())
+}
+
+/// Host function: accept next request
+/// Returns JSON with request info or null if server stopped
+#[op2]
+#[string]
+async fn op_serverAccept(server_id: u32) -> Result<String, JsErrorBox> {
+    // Get the receiver from the server state
+    let maybe_rx = {
+        let mut servers = SERVERS.lock().unwrap();
+        if let Some(state) = servers.get_mut(&server_id) {
+            // We need to take the receiver temporarily
+            Some(std::mem::replace(&mut state.request_rx, mpsc::channel(1).1))
+        } else {
+            // Server already stopped
+            return Ok("null".to_string());
+        }
+    };
+    
+    let mut rx = maybe_rx.unwrap();
+    
+    // Wait for a request with a timeout so we can check if server is stopping
+    use tokio::time::{timeout, Duration};
+    
+    loop {
+        match timeout(Duration::from_millis(100), rx.recv()).await {
+            Ok(Some((info, pending))) => {
+                // Put the receiver back
+                {
+                    let mut servers = SERVERS.lock().unwrap();
+                    if let Some(state) = servers.get_mut(&server_id) {
+                        state.request_rx = rx;
+                        state.pending_requests.insert(info.request_id, pending);
+                    } else {
+                        // Server was stopped while we were waiting
+                        return Ok("null".to_string());
+                    }
+                }
+                return Ok(serde_json::to_string(&info).unwrap());
+            }
+            Ok(None) => {
+                // Channel closed, server shutting down
+                return Ok("null".to_string());
+            }
+            Err(_) => {
+                // Timeout - check if server is still alive
+                let servers = SERVERS.lock().unwrap();
+                if !servers.contains_key(&server_id) {
+                    // Server was stopped
+                    return Ok("null".to_string());
+                }
+                // Continue waiting
+                drop(servers);
+            }
+        }
+    }
+}
+
+/// Host function: read request body
+#[op2]
+#[string]
+fn op_serverReadBody(request_id: u32) -> Result<String, JsErrorBox> {
+    let body = REQUEST_BODIES.lock().unwrap().remove(&request_id);
+    Ok(body.unwrap_or_default())
+}
+
+/// Host function: send response
+#[op2]
+async fn op_serverRespond(
+    server_id: u32,
+    request_id: u32,
+    status: u32,
+    #[string] headers_json: String,
+    #[string] body: String,
+) -> Result<(), JsErrorBox> {
+    // Get the pending request
+    let pending = {
+        let mut servers = SERVERS.lock().unwrap();
+        if let Some(state) = servers.get_mut(&server_id) {
+            state.pending_requests.remove(&request_id)
+        } else {
+            None
+        }
+    };
+    
+    let pending = pending
+        .ok_or_else(|| JsErrorBox::generic(format!("Request {} not found", request_id)))?;
+    
+    // Parse headers
+    let headers: HashMap<String, String> = serde_json::from_str(&headers_json)
+        .map_err(|e| JsErrorBox::generic(format!("Invalid headers JSON: {}", e)))?;
+    
+    // Build response
+    let status_code = StatusCode::from_u16(status as u16)
+        .map_err(|e| JsErrorBox::generic(format!("Invalid status code: {}", e)))?;
+    
+    let mut response_builder = HyperResponse::builder().status(status_code);
+    
+    for (name, value) in headers {
+        response_builder = response_builder.header(&name, &value);
+    }
+    
+    let response = response_builder
+        .body(Full::new(Bytes::from(body)))
+        .map_err(|e| JsErrorBox::generic(format!("Failed to build response: {}", e)))?;
+    
+    // Send response
+    let _ = pending.response_sender.send(response);
+    
+    // Clean up body storage
+    REQUEST_BODIES.lock().unwrap().remove(&request_id);
+    
+    Ok(())
+}
+
+/// Host function: stop server
+#[op2]
+async fn op_serverStop(server_id: u32) -> Result<(), JsErrorBox> {
+    // First, signal graceful shutdown to all connections
+    let (shutdown_tx, conn_shutdown_tx, active_connections) = {
+        let mut servers = SERVERS.lock().unwrap();
+        if let Some(state) = servers.get_mut(&server_id) {
+            (
+                state.shutdown_tx.take(),
+                state.conn_shutdown_tx.clone(),
+                state.active_connections.clone(),
+            )
+        } else {
+            return Ok(());
+        }
+    };
+    
+    // Stop accepting new connections
+    if let Some(tx) = shutdown_tx {
+        let _ = tx.send(());
+    }
+    
+    // Signal all connections to gracefully shutdown
+    let _ = conn_shutdown_tx.send(true);
+    
+    // Wait for all active connections to complete (with timeout)
+    use tokio::time::{timeout, Duration};
+    let wait_result = timeout(Duration::from_secs(30), async {
+        loop {
+            let count = active_connections.load(std::sync::atomic::Ordering::SeqCst);
+            if count == 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }).await;
+    
+    if wait_result.is_err() {
+        eprintln!("Warning: Timed out waiting for connections to close");
+    }
+    
+    // Remove server state
+    SERVERS.lock().unwrap().remove(&server_id);
+    
+    Ok(())
+}
+
 fn main() -> Result<(), AnyError> {
     let args: Vec<String> = env::args().collect();
     
@@ -728,6 +1135,42 @@ fn main() -> Result<(), AnyError> {
                 uri: "funee:internal".to_string(),
             },
             op_timerCancel(),
+        ),
+        // HTTP Server host functions (internal - accessed via Deno.core.ops)
+        (
+            FuneeIdentifier {
+                name: "serverStart".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_serverStart(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "serverAccept".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_serverAccept(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "serverReadBody".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_serverReadBody(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "serverRespond".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_serverRespond(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "serverStop".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_serverStop(),
         ),
     ]);
     
