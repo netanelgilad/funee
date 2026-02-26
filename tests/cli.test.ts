@@ -2830,6 +2830,231 @@ export default async () => {
     });
   });
 
+  // ==================== HTTP SERVER ====================
+  // HTTP server implementation tests
+  // These tests currently FAIL because serve() is not implemented yet
+
+  describe('HTTP server', () => {
+    /**
+     * HTTP Server API Test Suite
+     * 
+     * Tests for the HTTP server implementation per HTTP_SERVER_DESIGN.md.
+     * These tests verify that funee provides a serve() function that creates
+     * HTTP servers using web-standard Request/Response types.
+     * 
+     * Test approach:
+     * - Each fixture starts a server on port 0 (random)
+     * - Makes HTTP request(s) using fetch()
+     * - Verifies the response
+     * - Shuts down the server
+     */
+
+    it('basic server starts and responds to requests', async () => {
+      /**
+       * Tests basic serve() functionality:
+       * - serve() creates and starts a server
+       * - Server has port, hostname, shutdown properties
+       * - Server responds to HTTP requests
+       * - Server can be shut down gracefully
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/basic-server.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('server has port: true');
+      expect(stdout).toContain('server port > 0: true');
+      expect(stdout).toContain('server has hostname: true');
+      expect(stdout).toContain('server has shutdown: true');
+      expect(stdout).toContain('response ok: true');
+      expect(stdout).toContain('response status: 200');
+      expect(stdout).toContain('body is correct: true');
+      expect(stdout).toContain('shutdown complete: true');
+      expect(stdout).toContain('basic-server test complete');
+    });
+
+    it('server handles different HTTP methods (GET, POST, PUT, DELETE)', async () => {
+      /**
+       * Tests that the handler receives the correct HTTP method:
+       * - req.method property contains the HTTP method
+       * - GET, POST, PUT, DELETE are correctly identified
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/request-method.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('GET is correct: true');
+      expect(stdout).toContain('POST is correct: true');
+      expect(stdout).toContain('PUT is correct: true');
+      expect(stdout).toContain('DELETE is correct: true');
+      expect(stdout).toContain('request-method test complete');
+    });
+
+    it('server parses JSON request body', async () => {
+      /**
+       * Tests request body parsing:
+       * - Handler can read JSON body with req.json()
+       * - Body is correctly parsed into JavaScript object
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/request-body.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('response ok: true');
+      expect(stdout).toContain('has received field: true');
+      expect(stdout).toContain('hello is correct: true');
+      expect(stdout).toContain('number is correct: true');
+      expect(stdout).toContain('request-body test complete');
+    });
+
+    it('server parses request URL and query params', async () => {
+      /**
+       * Tests request URL parsing:
+       * - Handler receives full URL in req.url
+       * - URL can be parsed with URL constructor
+       * - pathname and searchParams are accessible
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/request-url.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('pathname is correct: true');
+      expect(stdout).toContain('search is correct: true');
+      expect(stdout).toContain('foo is correct: true');
+      expect(stdout).toContain('num is correct: true');
+      expect(stdout).toContain('request-url test complete');
+    });
+
+    it('server receives request headers', async () => {
+      /**
+       * Tests request header access:
+       * - Handler can access headers via req.headers
+       * - headers.get() returns header value
+       * - Header names are case-insensitive
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/request-headers.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('custom is correct: true');
+      expect(stdout).toContain('authorization is correct: true');
+      expect(stdout).toContain('content-type is correct: true');
+      expect(stdout).toContain('request-headers test complete');
+    });
+
+    it('server sets custom response headers', async () => {
+      /**
+       * Tests response header setting:
+       * - Handler can set custom headers on Response
+       * - Headers are received by the client
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/response-headers.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('X-Custom-Header correct: true');
+      expect(stdout).toContain('X-Another-Header correct: true');
+      expect(stdout).toContain('Content-Type includes text/plain: true');
+      expect(stdout).toContain('response-headers test complete');
+    });
+
+    it('server returns different HTTP status codes', async () => {
+      /**
+       * Tests response status codes:
+       * - Handler can return different status codes
+       * - response.ok is true for 2xx, false for 4xx/5xx
+       * - response.status matches returned status
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/response-status.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('200 is correct: true');
+      expect(stdout).toContain('201 is correct: true');
+      expect(stdout).toContain('204 is correct: true');
+      expect(stdout).toContain('400 is correct: true');
+      expect(stdout).toContain('404 is correct: true');
+      expect(stdout).toContain('500 is correct: true');
+      expect(stdout).toContain('response-status test complete');
+    });
+
+    it('Response.json() creates JSON response with correct Content-Type', async () => {
+      /**
+       * Tests Response.json() helper:
+       * - Response.json() creates JSON response
+       * - Content-Type is automatically set to application/json
+       * - Body is properly serialized JSON
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/response-json.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('content-type includes json: true');
+      expect(stdout).toContain('message is correct: true');
+      expect(stdout).toContain('number is correct: true');
+      expect(stdout).toContain('nested is correct: true');
+      expect(stdout).toContain('array is correct: true');
+      expect(stdout).toContain('response-json test complete');
+    });
+
+    it('server shuts down gracefully waiting for in-flight requests', async () => {
+      /**
+       * Tests graceful shutdown:
+       * - server.shutdown() returns a Promise
+       * - In-flight requests complete before shutdown finishes
+       * - After shutdown, server no longer accepts connections
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/server-shutdown.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('request completed after shutdown: true');
+      expect(stdout).toContain('response ok: true');
+      expect(stdout).toContain('body is correct: true');
+      expect(stdout).toContain('connection after shutdown failed: true');
+      expect(stdout).toContain('server-shutdown test complete');
+    });
+
+    it('server handles multiple concurrent requests', async () => {
+      /**
+       * Tests concurrent request handling:
+       * - Server handles multiple concurrent requests
+       * - Requests don't block each other
+       * - All requests complete successfully
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/concurrent-requests.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('all responses ok: true');
+      expect(stdout).toContain('handled concurrently: true');
+      expect(stdout).toContain('all requests completed: true');
+      expect(stdout).toContain('concurrent-requests test complete');
+    });
+
+    it('onListen callback is called with server info', async () => {
+      /**
+       * Tests onListen callback:
+       * - onListen is called when server starts listening
+       * - onListen receives hostname and port info
+       * - Port matches server.port
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/on-listen.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('onListen called: true');
+      expect(stdout).toContain('listenInfo exists: true');
+      expect(stdout).toContain('port matches server.port: true');
+      expect(stdout).toContain('server ready: true');
+      expect(stdout).toContain('on-listen test complete');
+    });
+
+    it('onError callback handles thrown errors', async () => {
+      /**
+       * Tests error handling:
+       * - When handler throws, onError is called
+       * - onError can return a custom error response
+       * - Without onError, default 500 response is returned
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['server/on-error.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('status is 500: true');
+      expect(stdout).toContain('body contains error: true');
+      expect(stdout).toContain('default is 500: true');
+      expect(stdout).toContain('on-error test complete');
+    });
+  });
+
   // ==================== FETCH API ====================
   // Web-standard fetch() implementation tests
   // These tests currently FAIL because fetch is not implemented yet
