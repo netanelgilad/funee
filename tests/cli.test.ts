@@ -2828,4 +2828,230 @@ export default async () => {
       expect(stdout).toContain('end');
     });
   });
+
+  // ==================== FETCH API ====================
+  // Web-standard fetch() implementation tests
+  // These tests currently FAIL because fetch is not implemented yet
+
+  describe('fetch API', () => {
+    /**
+     * Web Fetch API Test Suite
+     * 
+     * Tests for the web-standard fetch() implementation per WHATWG Fetch Standard.
+     * These tests verify that funee provides a fetch API that matches browser behavior.
+     * 
+     * Note: These tests are designed to FAIL until fetch() is implemented.
+     * They serve as the specification for the implementation.
+     */
+
+    it('fetch basic GET returns Response object', async () => {
+      /**
+       * Tests basic fetch functionality:
+       * - fetch(url) returns a Response object
+       * - Response has standard properties (ok, status, headers, json, text methods)
+       * - GET request to httpbin.org succeeds with status 200
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/basic-get.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('response type: object');
+      expect(stdout).toContain('response is object: true');
+      expect(stdout).toContain('has ok property: true');
+      expect(stdout).toContain('has status property: true');
+      expect(stdout).toContain('has headers property: true');
+      expect(stdout).toContain('has json method: true');
+      expect(stdout).toContain('has text method: true');
+      expect(stdout).toContain('ok: true');
+      expect(stdout).toContain('status: 200');
+      expect(stdout).toContain('basic-get test complete');
+    });
+
+    it('Response.json() parses JSON body', async () => {
+      /**
+       * Tests JSON body parsing:
+       * - response.json() returns a Promise
+       * - Promise resolves to parsed JavaScript object
+       * - Nested objects and arrays are properly parsed
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/response-json.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('json() returns promise: true');
+      expect(stdout).toContain('data type: object');
+      expect(stdout).toContain('data is object: true');
+      expect(stdout).toContain('has slideshow: true');
+      expect(stdout).toContain('slideshow.title type: string');
+      expect(stdout).toContain('slideshow has slides: true');
+      expect(stdout).toContain('response-json test complete');
+    });
+
+    it('Response.text() returns string body', async () => {
+      /**
+       * Tests text body extraction:
+       * - response.text() returns a Promise
+       * - Promise resolves to a string
+       * - Full response body is returned
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/response-text.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('text() returns promise: true');
+      expect(stdout).toContain('text type: string');
+      expect(stdout).toContain('text length > 0: true');
+      expect(stdout).toContain('contains html tag: true');
+      expect(stdout).toContain('contains body tag: true');
+      expect(stdout).toContain('response-text test complete');
+    });
+
+    it('Response has correct properties (ok, status, statusText, url, headers)', async () => {
+      /**
+       * Tests Response properties per WHATWG spec:
+       * - ok: boolean (true for 2xx)
+       * - status: number (HTTP status code)
+       * - statusText: string (HTTP status message)
+       * - url: string (final URL after redirects)
+       * - headers: Headers object
+       * - redirected: boolean
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/response-properties.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('ok type: boolean');
+      expect(stdout).toContain('ok value: true');
+      expect(stdout).toContain('status type: number');
+      expect(stdout).toContain('status value: 200');
+      expect(stdout).toContain('statusText type: string');
+      expect(stdout).toContain('url type: string');
+      expect(stdout).toContain('url contains httpbin: true');
+      expect(stdout).toContain('headers exists: true');
+      expect(stdout).toContain('headers has get method: true');
+      expect(stdout).toContain('content-type header: true');
+      expect(stdout).toContain('redirected type: boolean');
+      expect(stdout).toContain('response-properties test complete');
+    });
+
+    it('fetch POST with JSON body', async () => {
+      /**
+       * Tests POST requests with body:
+       * - method: 'POST' sends POST request
+       * - body: string sends request body
+       * - Content-Type header should be set for JSON
+       * - httpbin.org echoes the request for verification
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/post-with-body.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('ok: true');
+      expect(stdout).toContain('status: 200');
+      expect(stdout).toContain('has json field: true');
+      expect(stdout).toContain('json.key: value');
+      expect(stdout).toContain('json.number: 42');
+      expect(stdout).toContain('json.nested.a: 1');
+      expect(stdout).toContain('json.nested.b: 2');
+      expect(stdout).toContain('post-with-body test complete');
+    });
+
+    it('fetch sends custom headers', async () => {
+      /**
+       * Tests custom request headers:
+       * - headers: { name: value } object sets request headers
+       * - Authorization header works correctly
+       * - Custom X- headers are sent
+       * - httpbin.org echoes headers for verification
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/custom-headers.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('ok: true');
+      expect(stdout).toContain('status: 200');
+      expect(stdout).toContain('X-Custom-Header received: true');
+      expect(stdout).toContain('X-Custom-Header value: test-value-123');
+      expect(stdout).toContain('Authorization received: true');
+      expect(stdout).toContain('Authorization value: Bearer my-test-token');
+      expect(stdout).toContain('Accept received: true');
+      expect(stdout).toContain('X-Request-Id received: true');
+      expect(stdout).toContain('custom-headers test complete');
+    });
+
+    it('HTTP 404 error: ok is false, does not throw', async () => {
+      /**
+       * Tests HTTP error handling (4xx/5xx):
+       * - fetch() does NOT throw on HTTP errors (only network errors)
+       * - response.ok is false for 4xx status codes
+       * - response.status reflects the actual status code
+       * 
+       * Per web standards, HTTP errors are not exceptions.
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/error-404.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('fetch did not throw on 404');
+      expect(stdout).toContain('ok: false');
+      expect(stdout).toContain('ok is false: true');
+      expect(stdout).toContain('status: 404');
+      expect(stdout).toContain('status is 404: true');
+      expect(stdout).toContain('400 ok: false');
+      expect(stdout).toContain('400 status: 400');
+      expect(stdout).toContain('401 ok: false');
+      expect(stdout).toContain('401 status: 401');
+      expect(stdout).toContain('403 ok: false');
+      expect(stdout).toContain('403 status: 403');
+      expect(stdout).toContain('error-404 test complete');
+    });
+
+    it('network error throws exception', async () => {
+      /**
+       * Tests network error handling:
+       * - fetch() throws on network failures (DNS error, connection refused)
+       * - This is different from HTTP errors which don't throw
+       * 
+       * Per web standards, fetch throws TypeError on network errors.
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/error-network.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('network error thrown: true');
+      expect(stdout).toContain('has error message: true');
+      expect(stdout).toContain('connection error thrown: true');
+      expect(stdout).toContain('error-network test complete');
+    });
+
+    it('Headers object has get(), has(), entries() methods', async () => {
+      /**
+       * Tests Headers class methods:
+       * - get(name): returns value or null, case-insensitive
+       * - has(name): returns boolean, case-insensitive
+       * - entries(): iterable of [name, value] pairs
+       * - keys(): iterable of header names
+       * - values(): iterable of header values
+       * - forEach(): iterates over all headers
+       * 
+       * Also tests Headers constructor if globally available.
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['fetch/headers-object.ts']);
+      
+      expect(exitCode).toBe(0);
+      // Response headers tests
+      expect(stdout).toContain('get Content-Type: true');
+      expect(stdout).toContain('get CONTENT-TYPE: true');
+      expect(stdout).toContain('has content-type: true');
+      expect(stdout).toContain('has Content-Type: true');
+      expect(stdout).toContain('has nonexistent: false');
+      expect(stdout).toContain('entries is function: true');
+      expect(stdout).toContain('entry count > 0: true');
+      expect(stdout).toContain('keys is function: true');
+      expect(stdout).toContain('key count > 0: true');
+      expect(stdout).toContain('values is function: true');
+      expect(stdout).toContain('value count > 0: true');
+      expect(stdout).toContain('forEach is function: true');
+      expect(stdout).toContain('forEach count > 0: true');
+      // Headers constructor tests (if available)
+      expect(stdout).toContain('Headers from object: true');
+      expect(stdout).toContain('Headers from array: true');
+      expect(stdout).toContain('Headers.set: true');
+      expect(stdout).toContain('Headers.delete: true');
+      expect(stdout).toContain('Headers.append combines: true');
+      expect(stdout).toContain('headers-object test complete');
+    });
+  });
 });
