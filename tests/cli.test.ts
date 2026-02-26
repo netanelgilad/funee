@@ -3435,4 +3435,170 @@ export default async () => {
       expect(stdout).toContain('headers-object test complete');
     });
   });
+
+  // ==================== SUBPROCESS API ====================
+
+  describe('subprocess', () => {
+    /**
+     * Subprocess API test suite
+     * 
+     * These tests verify funee's subprocess spawning and management API.
+     * The API provides:
+     * - spawn() for running commands
+     * - Process object for managing running processes
+     * - Streaming stdin/stdout/stderr
+     * - Signal handling and process control
+     */
+
+    it('spawns a basic command and gets exit code', async () => {
+      /**
+       * Tests basic subprocess spawning:
+       * - spawn(command, args) runs a command
+       * - Returns status with exit code
+       * - success is true for exit code 0
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-basic.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('exit code: 0');
+      expect(stdout).toContain('success: true');
+      expect(stdout).toContain('spawn-basic: pass');
+    });
+
+    it('captures stdout output from subprocess', async () => {
+      /**
+       * Tests stdout capture:
+       * - stdout is available as Uint8Array
+       * - stdoutText() returns decoded string
+       * - Output matches command output
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-stdout.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('stdout text: "hello world"');
+      expect(stdout).toContain('spawn-stdout: pass');
+    });
+
+    it('captures stderr output from subprocess', async () => {
+      /**
+       * Tests stderr capture:
+       * - stderr is captured separately
+       * - stderrText() returns decoded string
+       * - Errors appear in stderr, not stdout
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-stderr.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('stderr contains error: true');
+      expect(stdout).toContain('stdout is empty: true');
+      expect(stdout).toContain('success: false');
+      expect(stdout).toContain('spawn-stderr: pass');
+    });
+
+    it('writes to subprocess stdin', async () => {
+      /**
+       * Tests stdin writing:
+       * - stdin: "piped" enables writing
+       * - writeInput() sends data
+       * - Process receives input
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-stdin.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('output: "hello from stdin"');
+      expect(stdout).toContain('matches input: true');
+      expect(stdout).toContain('spawn-stdin: pass');
+    });
+
+    it('sets working directory for subprocess', async () => {
+      /**
+       * Tests cwd option:
+       * - cwd sets process working directory
+       * - Commands run in specified directory
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-cwd.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('is /tmp: true');
+      expect(stdout).toContain('spawn-cwd: pass');
+    });
+
+    it('sets environment variables for subprocess', async () => {
+      /**
+       * Tests env options:
+       * - env sets custom environment variables
+       * - inheritEnv controls parent env inheritance
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-env.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('custom env var: custom_value');
+      expect(stdout).toContain('inheritEnv true, has PATH: true');
+      expect(stdout).toContain('spawn-env: pass');
+    });
+
+    it('kills a running subprocess', async () => {
+      /**
+       * Tests process killing:
+       * - kill(signal) sends signal to process
+       * - Process terminates
+       * - status.signal contains termination signal
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-kill.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('pid is number: true');
+      expect(stdout).toContain('success: false');
+      expect(stdout).toContain('signal: SIGTERM');
+      expect(stdout).toContain('spawn-kill: pass');
+    });
+
+    it('handles subprocess errors gracefully', async () => {
+      /**
+       * Tests error handling:
+       * - Command not found throws error
+       * - Invalid cwd throws error
+       * - Errors have descriptive messages
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-error.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('command not found error caught: true');
+      expect(stdout).toContain('spawn-error: pass');
+    });
+
+    it('passes arguments to subprocess correctly', async () => {
+      /**
+       * Tests argument handling:
+       * - Multiple arguments work
+       * - Arguments with spaces handled
+       * - cmd array form works
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-args.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('multiple args: "one two three"');
+      expect(stdout).toContain('cmd array args: "from cmd array"');
+      expect(stdout).toContain('spawn-args: pass');
+    });
+
+    it('captures non-zero exit codes', async () => {
+      /**
+       * Tests exit code handling:
+       * - Non-zero codes captured correctly
+       * - success is false for non-zero
+       * - Different codes are distinguishable
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['process/spawn-exit-code.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('exit 1 - code: 1');
+      expect(stdout).toContain('exit 1 - success: false');
+      expect(stdout).toContain('exit 42 - code: 42');
+      expect(stdout).toContain('exit 0 - code: 0');
+      expect(stdout).toContain('exit 0 - success: true');
+      expect(stdout).toContain('exit 255 - code: 255');
+      expect(stdout).toContain('spawn-exit-code: pass');
+    });
+  });
 });
