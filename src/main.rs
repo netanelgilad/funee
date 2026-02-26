@@ -531,6 +531,287 @@ fn op_watchStop(watcher_id: u32) {
 }
 
 // ============================================================================
+// Subprocess Host Functions
+// ============================================================================
+
+use tokio::process::{Child as TokioChild, Command as TokioCommand};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::process::Stdio;
+
+/// Process handle storage
+struct ProcessHandle {
+    child: TokioChild,
+}
+
+/// Global storage for active processes
+static PROCESSES: LazyLock<Mutex<HashMap<u32, ProcessHandle>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static NEXT_PROCESS_ID: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(1));
+
+/// Host function: spawn a new process
+/// Returns JSON with process_id and pid, or error
+#[op2]
+#[string]
+fn op_processSpawn(
+    #[string] cmd_json: &str,
+    #[string] cwd: &str,
+    #[string] env_json: &str,
+    inherit_env: bool,
+    #[string] stdin_mode: &str,
+    #[string] stdout_mode: &str,
+    #[string] stderr_mode: &str,
+) -> Result<String, JsErrorBox> {
+    // Parse command array
+    let cmd: Vec<String> = serde_json::from_str(cmd_json)
+        .map_err(|e| JsErrorBox::generic(format!("Invalid cmd JSON: {}", e)))?;
+    
+    if cmd.is_empty() {
+        return Err(JsErrorBox::generic("Command array cannot be empty"));
+    }
+    
+    // Build command
+    let mut command = TokioCommand::new(&cmd[0]);
+    command.args(&cmd[1..]);
+    
+    // Set working directory if specified
+    if !cwd.is_empty() {
+        command.current_dir(cwd);
+    }
+    
+    // Handle environment
+    if !inherit_env {
+        command.env_clear();
+    }
+    
+    // Parse and add custom env vars
+    let env_vars: HashMap<String, String> = serde_json::from_str(env_json)
+        .map_err(|e| JsErrorBox::generic(format!("Invalid env JSON: {}", e)))?;
+    for (key, value) in env_vars {
+        command.env(key, value);
+    }
+    
+    // Set stdio modes
+    command.stdin(match stdin_mode {
+        "piped" => Stdio::piped(),
+        "inherit" => Stdio::inherit(),
+        _ => Stdio::null(),
+    });
+    command.stdout(match stdout_mode {
+        "piped" => Stdio::piped(),
+        "inherit" => Stdio::inherit(),
+        _ => Stdio::null(),
+    });
+    command.stderr(match stderr_mode {
+        "piped" => Stdio::piped(),
+        "inherit" => Stdio::inherit(),
+        _ => Stdio::null(),
+    });
+    
+    // Spawn the process
+    let child = command.spawn()
+        .map_err(|e| JsErrorBox::generic(format!("Failed to spawn process: {}", e)))?;
+    
+    let pid = child.id().unwrap_or(0);
+    
+    // Generate process ID and store
+    let process_id = {
+        let mut id = NEXT_PROCESS_ID.lock().unwrap();
+        let current = *id;
+        *id += 1;
+        current
+    };
+    
+    PROCESSES.lock().unwrap().insert(process_id, ProcessHandle { child });
+    
+    Ok(serde_json::json!({
+        "process_id": process_id,
+        "pid": pid,
+    }).to_string())
+}
+
+/// Host function: write data to process stdin (base64 encoded)
+/// Returns bytes written or error
+#[op2]
+async fn op_processWrite(process_id: u32, #[string] data_base64: String) -> Result<u32, JsErrorBox> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    
+    // Decode base64 data
+    let data = STANDARD.decode(&data_base64)
+        .map_err(|e| JsErrorBox::generic(format!("Invalid base64: {}", e)))?;
+    
+    // Take stdin out of the process handle
+    let stdin_opt = {
+        let mut processes = PROCESSES.lock().unwrap();
+        let handle = processes.get_mut(&process_id)
+            .ok_or_else(|| JsErrorBox::generic(format!("Process {} not found", process_id)))?;
+        handle.child.stdin.take()
+    };
+    
+    let mut stdin = stdin_opt
+        .ok_or_else(|| JsErrorBox::generic("Process stdin not available (already taken or not piped)"))?;
+    
+    // Write the data
+    let len = data.len();
+    stdin.write_all(&data).await
+        .map_err(|e| JsErrorBox::generic(format!("Write failed: {}", e)))?;
+    
+    // Put stdin back (so it can be written to again)
+    {
+        let mut processes = PROCESSES.lock().unwrap();
+        if let Some(handle) = processes.get_mut(&process_id) {
+            handle.child.stdin = Some(stdin);
+        }
+    }
+    
+    Ok(len as u32)
+}
+
+/// Host function: close process stdin
+#[op2(fast)]
+fn op_processCloseStdin(process_id: u32) -> Result<(), JsErrorBox> {
+    let mut processes = PROCESSES.lock().unwrap();
+    let handle = processes.get_mut(&process_id)
+        .ok_or_else(|| JsErrorBox::generic(format!("Process {} not found", process_id)))?;
+    
+    // Take stdin to drop it, which closes it
+    handle.child.stdin.take();
+    Ok(())
+}
+
+/// Host function: read all stdout from process
+/// Returns base64 encoded bytes
+#[op2]
+#[string]
+async fn op_processReadStdout(process_id: u32) -> Result<String, JsErrorBox> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    
+    let stdout_opt = {
+        let mut processes = PROCESSES.lock().unwrap();
+        let handle = processes.get_mut(&process_id)
+            .ok_or_else(|| JsErrorBox::generic(format!("Process {} not found", process_id)))?;
+        handle.child.stdout.take()
+    };
+    
+    let mut stdout = stdout_opt
+        .ok_or_else(|| JsErrorBox::generic("Process stdout not available"))?;
+    
+    let mut buffer = Vec::new();
+    stdout.read_to_end(&mut buffer).await
+        .map_err(|e| JsErrorBox::generic(format!("Read failed: {}", e)))?;
+    
+    Ok(STANDARD.encode(&buffer))
+}
+
+/// Host function: read all stderr from process
+/// Returns base64 encoded bytes
+#[op2]
+#[string]
+async fn op_processReadStderr(process_id: u32) -> Result<String, JsErrorBox> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    
+    let stderr_opt = {
+        let mut processes = PROCESSES.lock().unwrap();
+        let handle = processes.get_mut(&process_id)
+            .ok_or_else(|| JsErrorBox::generic(format!("Process {} not found", process_id)))?;
+        handle.child.stderr.take()
+    };
+    
+    let mut stderr = stderr_opt
+        .ok_or_else(|| JsErrorBox::generic("Process stderr not available"))?;
+    
+    let mut buffer = Vec::new();
+    stderr.read_to_end(&mut buffer).await
+        .map_err(|e| JsErrorBox::generic(format!("Read failed: {}", e)))?;
+    
+    Ok(STANDARD.encode(&buffer))
+}
+
+/// Host function: wait for process to exit
+/// Returns JSON with code, signal, success
+#[op2]
+#[string]
+async fn op_processWait(process_id: u32) -> Result<String, JsErrorBox> {
+    let child_opt = {
+        let mut processes = PROCESSES.lock().unwrap();
+        processes.remove(&process_id).map(|h| h.child)
+    };
+    
+    let mut child = child_opt
+        .ok_or_else(|| JsErrorBox::generic(format!("Process {} not found", process_id)))?;
+    
+    let status = child.wait().await
+        .map_err(|e| JsErrorBox::generic(format!("Wait failed: {}", e)))?;
+    
+    let code = status.code();
+    
+    // On Unix, get signal if terminated by signal
+    #[cfg(unix)]
+    let signal = {
+        use std::os::unix::process::ExitStatusExt;
+        status.signal().map(|s| signal_name(s))
+    };
+    #[cfg(not(unix))]
+    let signal: Option<String> = None;
+    
+    let success = status.success();
+    
+    Ok(serde_json::json!({
+        "code": code,
+        "signal": signal,
+        "success": success,
+    }).to_string())
+}
+
+/// Host function: send signal to process
+#[op2(fast)]
+fn op_processKill(process_id: u32, #[string] signal: &str) -> Result<(), JsErrorBox> {
+    let mut processes = PROCESSES.lock().unwrap();
+    let handle = processes.get_mut(&process_id)
+        .ok_or_else(|| JsErrorBox::generic(format!("Process {} not found", process_id)))?;
+    
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{kill, Signal};
+        use nix::unistd::Pid;
+        
+        let sig = match signal {
+            "SIGTERM" => Signal::SIGTERM,
+            "SIGKILL" => Signal::SIGKILL,
+            "SIGINT" => Signal::SIGINT,
+            "SIGHUP" => Signal::SIGHUP,
+            "SIGQUIT" => Signal::SIGQUIT,
+            _ => return Err(JsErrorBox::generic(format!("Unknown signal: {}", signal))),
+        };
+        
+        if let Some(pid) = handle.child.id() {
+            kill(Pid::from_raw(pid as i32), sig)
+                .map_err(|e| JsErrorBox::generic(format!("Kill failed: {}", e)))?;
+        }
+    }
+    
+    #[cfg(not(unix))]
+    {
+        // On Windows, just try to kill the process
+        handle.child.start_kill()
+            .map_err(|e| JsErrorBox::generic(format!("Kill failed: {}", e)))?;
+    }
+    
+    Ok(())
+}
+
+/// Convert signal number to name
+#[cfg(unix)]
+fn signal_name(signal: i32) -> String {
+    match signal {
+        1 => "SIGHUP".to_string(),
+        2 => "SIGINT".to_string(),
+        3 => "SIGQUIT".to_string(),
+        9 => "SIGKILL".to_string(),
+        15 => "SIGTERM".to_string(),
+        _ => format!("SIG{}", signal),
+    }
+}
+
+// ============================================================================
 // HTTP Server Host Functions
 // ============================================================================
 
@@ -1171,6 +1452,56 @@ fn main() -> Result<(), AnyError> {
                 uri: "funee:internal".to_string(),
             },
             op_serverStop(),
+        ),
+        // Subprocess host functions (internal - accessed via Deno.core.ops)
+        (
+            FuneeIdentifier {
+                name: "processSpawn".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_processSpawn(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "processWrite".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_processWrite(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "processCloseStdin".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_processCloseStdin(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "processReadStdout".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_processReadStdout(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "processReadStderr".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_processReadStderr(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "processWait".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_processWait(),
+        ),
+        (
+            FuneeIdentifier {
+                name: "processKill".to_string(),
+                uri: "funee:internal".to_string(),
+            },
+            op_processKill(),
         ),
     ]);
     

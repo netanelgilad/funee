@@ -7,7 +7,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Run pwd in /tmp directory
   const result = await spawn({
     cmd: ["pwd"],

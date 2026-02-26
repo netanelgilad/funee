@@ -750,6 +750,242 @@ const SERVER_BOOTSTRAP: &str = r#"
 })();
 "#;
 
+const SUBPROCESS_BOOTSTRAP: &str = r#"
+(() => {
+    // Base64 encode/decode helpers (without using btoa/atob which aren't available)
+    const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    
+    const base64Encode = (data) => {
+        const bytes = typeof data === "string" 
+            ? utf8Encode(data)
+            : data;
+        
+        let result = "";
+        let i = 0;
+        while (i < bytes.length) {
+            const b1 = bytes[i++];
+            const hasB2 = i < bytes.length;
+            const b2 = hasB2 ? bytes[i++] : 0;
+            const hasB3 = i < bytes.length;
+            const b3 = hasB3 ? bytes[i++] : 0;
+            
+            result += base64Chars.charAt(b1 >> 2);
+            result += base64Chars.charAt(((b1 & 3) << 4) | (b2 >> 4));
+            result += hasB2 ? base64Chars.charAt(((b2 & 15) << 2) | (b3 >> 6)) : "=";
+            result += hasB3 ? base64Chars.charAt(b3 & 63) : "=";
+        }
+        return result;
+    };
+
+    const base64Decode = (encoded) => {
+        const lookup = {};
+        for (let i = 0; i < base64Chars.length; i++) {
+            lookup[base64Chars.charAt(i)] = i;
+        }
+        
+        const len = encoded.length;
+        let bufferLength = Math.floor(len * 0.75);
+        
+        // Adjust for padding
+        let padding = 0;
+        if (encoded[len - 1] === "=") padding++;
+        if (encoded[len - 2] === "=") padding++;
+        bufferLength -= padding;
+        
+        const bytes = new Uint8Array(bufferLength);
+        let p = 0;
+        
+        for (let i = 0; i < len; i += 4) {
+            const c1 = lookup[encoded.charAt(i)];
+            const c2 = lookup[encoded.charAt(i + 1)];
+            const c3 = encoded.charAt(i + 2) === "=" ? undefined : lookup[encoded.charAt(i + 2)];
+            const c4 = encoded.charAt(i + 3) === "=" ? undefined : lookup[encoded.charAt(i + 3)];
+            
+            if (p < bufferLength) bytes[p++] = (c1 << 2) | (c2 >> 4);
+            if (c3 !== undefined && p < bufferLength) bytes[p++] = ((c2 & 15) << 4) | (c3 >> 2);
+            if (c4 !== undefined && p < bufferLength) bytes[p++] = ((c3 & 3) << 6) | c4;
+        }
+        
+        return bytes;
+    };
+
+    // Simple UTF-8 decoder
+    const utf8Decode = (bytes) => {
+        let result = "";
+        let i = 0;
+        while (i < bytes.length) {
+            const byte1 = bytes[i++];
+            if (byte1 < 0x80) {
+                result += String.fromCharCode(byte1);
+            } else if (byte1 < 0xE0) {
+                const byte2 = bytes[i++];
+                result += String.fromCharCode(((byte1 & 0x1F) << 6) | (byte2 & 0x3F));
+            } else if (byte1 < 0xF0) {
+                const byte2 = bytes[i++];
+                const byte3 = bytes[i++];
+                result += String.fromCharCode(((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F));
+            } else {
+                const byte2 = bytes[i++];
+                const byte3 = bytes[i++];
+                const byte4 = bytes[i++];
+                let codePoint = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F);
+                codePoint -= 0x10000;
+                result += String.fromCharCode(0xD800 + (codePoint >> 10));
+                result += String.fromCharCode(0xDC00 + (codePoint & 0x3FF));
+            }
+        }
+        return result;
+    };
+
+    // Simple UTF-8 encoder  
+    const utf8Encode = (str) => {
+        const bytes = [];
+        for (let i = 0; i < str.length; i++) {
+            let code = str.charCodeAt(i);
+            
+            // Handle surrogate pairs
+            if (code >= 0xD800 && code <= 0xDBFF && i + 1 < str.length) {
+                const next = str.charCodeAt(i + 1);
+                if (next >= 0xDC00 && next <= 0xDFFF) {
+                    code = 0x10000 + ((code & 0x3FF) << 10) + (next & 0x3FF);
+                    i++;
+                }
+            }
+            
+            if (code < 0x80) {
+                bytes.push(code);
+            } else if (code < 0x800) {
+                bytes.push(0xC0 | (code >> 6));
+                bytes.push(0x80 | (code & 0x3F));
+            } else if (code < 0x10000) {
+                bytes.push(0xE0 | (code >> 12));
+                bytes.push(0x80 | ((code >> 6) & 0x3F));
+                bytes.push(0x80 | (code & 0x3F));
+            } else {
+                bytes.push(0xF0 | (code >> 18));
+                bytes.push(0x80 | ((code >> 12) & 0x3F));
+                bytes.push(0x80 | ((code >> 6) & 0x3F));
+                bytes.push(0x80 | (code & 0x3F));
+            }
+        }
+        return new Uint8Array(bytes);
+    };
+
+    // Spawn function that returns a Process handle or Promise<CommandOutput>
+    globalThis.spawn = (commandOrOptions, args) => {
+        const ops = Deno.core.ops;
+        
+        // Normalize to options object
+        const isSimpleForm = typeof commandOrOptions === "string";
+        const options = isSimpleForm
+            ? { 
+                cmd: [commandOrOptions, ...(args || [])],
+                stdout: "piped",
+                stderr: "piped",
+                stdin: "null",
+              }
+            : {
+                stdout: commandOrOptions.stdout || "piped",
+                stderr: commandOrOptions.stderr || "piped",
+                stdin: commandOrOptions.stdin || "null",
+                ...commandOrOptions,
+              };
+        
+        // Spawn the process
+        const resultJson = ops.op_processSpawn(
+            JSON.stringify(options.cmd),
+            options.cwd || "",
+            JSON.stringify(options.env || {}),
+            options.inheritEnv !== false,
+            options.stdin || "null",
+            options.stdout || "piped",
+            options.stderr || "piped",
+        );
+        
+        const result = JSON.parse(resultJson);
+        const processId = result.process_id;
+        const pid = result.pid;
+        
+        let stdinClosed = false;
+        let statusPromise = null;
+        
+        const getStatus = () => {
+            if (!statusPromise) {
+                statusPromise = (async () => {
+                    const waitResultJson = await ops.op_processWait(processId);
+                    const waitResult = JSON.parse(waitResultJson);
+                    return {
+                        success: waitResult.success,
+                        code: waitResult.code,
+                        signal: waitResult.signal,
+                    };
+                })();
+            }
+            return statusPromise;
+        };
+        
+        const process = {
+            pid,
+            
+            get status() {
+                return getStatus();
+            },
+            
+            kill(signal = "SIGTERM") {
+                ops.op_processKill(processId, signal);
+            },
+            
+            async output() {
+                const stdoutPromise = options.stdout === "piped" 
+                    ? ops.op_processReadStdout(processId) 
+                    : Promise.resolve("");
+                const stderrPromise = options.stderr === "piped" 
+                    ? ops.op_processReadStderr(processId) 
+                    : Promise.resolve("");
+                
+                const [stdoutBase64, stderrBase64] = await Promise.all([stdoutPromise, stderrPromise]);
+                
+                const status = await getStatus();
+                
+                const stdout = stdoutBase64 ? base64Decode(stdoutBase64) : new Uint8Array(0);
+                const stderr = stderrBase64 ? base64Decode(stderrBase64) : new Uint8Array(0);
+                
+                return {
+                    status,
+                    stdout,
+                    stderr,
+                    stdoutText: () => utf8Decode(stdout),
+                    stderrText: () => utf8Decode(stderr),
+                };
+            },
+            
+            async writeInput(data) {
+                if (options.stdin !== "piped") {
+                    throw new Error("Cannot write to stdin: stdin is not piped");
+                }
+                if (stdinClosed) {
+                    throw new Error("Cannot write to stdin: stdin already closed");
+                }
+                
+                const encoded = base64Encode(data);
+                await ops.op_processWrite(processId, encoded);
+                
+                ops.op_processCloseStdin(processId);
+                stdinClosed = true;
+            },
+        };
+        
+        // For simple form, return Promise<CommandOutput>
+        if (isSimpleForm) {
+            return process.output();
+        }
+        
+        // For options form, return Process handle
+        return process;
+    };
+})();
+"#;
+
 pub async fn run_js(js: &str, ops: Vec<OpDecl>) -> Result<(), AnyError> {
     let ext = Extension {
         ops: std::borrow::Cow::Owned(ops),
@@ -769,6 +1005,9 @@ pub async fn run_js(js: &str, ops: Vec<OpDecl>) -> Result<(), AnyError> {
     
     // Execute server bootstrap to set up serve() function
     js_runtime.execute_script("[funee:server.js]", SERVER_BOOTSTRAP)?;
+    
+    // Execute subprocess bootstrap to set up spawn() function
+    js_runtime.execute_script("[funee:subprocess.js]", SUBPROCESS_BOOTSTRAP)?;
     
     // Then execute user code
     let js_code: FastString = js.to_string().into();

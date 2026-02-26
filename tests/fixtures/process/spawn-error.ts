@@ -8,7 +8,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Test 1: Non-existent command
   let errorCaught = false;
   let errorMessage = "";

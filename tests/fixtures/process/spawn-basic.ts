@@ -8,7 +8,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Simple command that exits successfully
   const result = await spawn("echo", ["hello"]);
   

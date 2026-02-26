@@ -8,7 +8,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Test 1: Multiple arguments
   const result1 = await spawn("echo", ["one", "two", "three"]);
   const text1 = result1.stdoutText().trim();

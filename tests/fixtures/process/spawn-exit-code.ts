@@ -8,7 +8,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Test 1: Exit code 1
   const result1 = await spawn("sh", ["-c", "exit 1"]);
   log(`exit 1 - code: ${result1.status.code}`);

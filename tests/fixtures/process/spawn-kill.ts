@@ -8,7 +8,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Start a long-running process
   const proc = spawn({
     cmd: ["sleep", "60"],

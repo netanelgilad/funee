@@ -8,7 +8,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Use cat to echo back our input
   const proc = spawn({
     cmd: ["cat"],

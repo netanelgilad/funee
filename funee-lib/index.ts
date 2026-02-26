@@ -666,3 +666,17 @@ export type {
 } from "./server/index.ts";
 
 export { serve } from "./server/index.ts";
+
+// ============================================================================
+// Subprocess - Child Process Management
+// ============================================================================
+
+export type {
+  SpawnOptions,
+  ProcessStatus,
+  CommandOutput,
+  Process,
+  Signal,
+} from "./process/index.ts";
+
+export { spawn } from "./process/index.ts";

@@ -8,7 +8,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Test 1: Set custom env var
   const result1 = await spawn({
     cmd: ["sh", "-c", "echo $MY_VAR"],

@@ -8,7 +8,7 @@
  */
 import { spawn, log } from "funee";
 
-export default async function main() {
+export default async () => {
   // Command that writes to stderr: ls nonexistent file
   const result = await spawn("ls", ["nonexistent_file_12345"]);
   
