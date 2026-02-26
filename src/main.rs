@@ -331,6 +331,82 @@ fn op_httpFetch(
     Ok(result.to_string())
 }
 
+/// Host function: Async HTTP fetch (web-standard fetch implementation)
+/// Takes method, URL, headers (as JSON string), optional body, and follow_redirects flag
+/// Returns a JSON string with { status, statusText, headers, body, url, redirected }
+#[op2]
+#[string]
+async fn op_fetch(
+    #[string] method: String,
+    #[string] url: String,
+    #[string] headers_json: String,
+    #[string] body: String,
+    follow_redirects: bool,
+) -> Result<String, JsErrorBox> {
+    use reqwest::redirect::Policy;
+    
+    // Build client with redirect policy
+    let client = reqwest::Client::builder()
+        .redirect(if follow_redirects { Policy::limited(10) } else { Policy::none() })
+        .build()
+        .map_err(|e| JsErrorBox::generic(format!("Failed to build HTTP client: {}", e)))?;
+    
+    // Build request based on method
+    let mut request_builder = match method.to_uppercase().as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        "PATCH" => client.patch(&url),
+        "HEAD" => client.head(&url),
+        "OPTIONS" => client.request(reqwest::Method::OPTIONS, &url),
+        _ => return Err(JsErrorBox::type_error(format!("Unsupported HTTP method: {}", method))),
+    };
+    
+    // Parse and add headers
+    let headers: HashMap<String, String> = serde_json::from_str(&headers_json)
+        .map_err(|e| JsErrorBox::generic(format!("Invalid headers JSON: {}", e)))?;
+    for (key, value) in headers {
+        request_builder = request_builder.header(&key, &value);
+    }
+    
+    // Add body if not empty
+    if !body.is_empty() {
+        request_builder = request_builder.body(body);
+    }
+    
+    // Send request
+    let response = request_builder.send().await
+        .map_err(|e| JsErrorBox::generic(format!("HTTP request failed: {}", e)))?;
+    
+    // Extract response data
+    let status = response.status().as_u16();
+    let status_text = response.status().canonical_reason().unwrap_or("").to_string();
+    let final_url = response.url().to_string();
+    let redirected = final_url != url;
+    
+    let response_headers: HashMap<String, String> = response
+        .headers()
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+        .collect();
+    
+    let response_body = response.text().await
+        .map_err(|e| JsErrorBox::generic(format!("Failed to read response body: {}", e)))?;
+    
+    // Build response JSON
+    let result = serde_json::json!({
+        "status": status,
+        "statusText": status_text,
+        "headers": response_headers,
+        "body": response_body,
+        "url": final_url,
+        "redirected": redirected
+    });
+    
+    Ok(result.to_string())
+}
+
 // ============================================================================
 // File Watcher Host Functions
 // ============================================================================
@@ -577,6 +653,15 @@ fn main() -> Result<(), AnyError> {
                 uri: "funee".to_string(),
             },
             op_httpFetch(),
+        ),
+        // Web-standard fetch (async version with full Response info)
+        // Note: This is used by the global fetch() implementation
+        (
+            FuneeIdentifier {
+                name: "_fetch".to_string(),
+                uri: "funee".to_string(),
+            },
+            op_fetch(),
         ),
         // OS host functions
         (

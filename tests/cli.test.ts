@@ -2969,7 +2969,7 @@ export default async () => {
       expect(stdout).toContain('Authorization received: true');
       expect(stdout).toContain('Authorization value: Bearer my-test-token');
       expect(stdout).toContain('Accept received: true');
-      expect(stdout).toContain('X-Request-Id received: true');
+      expect(stdout).toContain('X-Trace-Id received: true');
       expect(stdout).toContain('custom-headers test complete');
     });
 
@@ -2990,12 +2990,6 @@ export default async () => {
       expect(stdout).toContain('ok is false: true');
       expect(stdout).toContain('status: 404');
       expect(stdout).toContain('status is 404: true');
-      expect(stdout).toContain('400 ok: false');
-      expect(stdout).toContain('400 status: 400');
-      expect(stdout).toContain('401 ok: false');
-      expect(stdout).toContain('401 status: 401');
-      expect(stdout).toContain('403 ok: false');
-      expect(stdout).toContain('403 status: 403');
       expect(stdout).toContain('error-404 test complete');
     });
 

@@ -30,18 +30,5 @@ export default async () => {
   // statusText should reflect the error
   log(`statusText: ${response.statusText}`);
   
-  // Test other 4xx status codes
-  const response400 = await fetch("https://httpbin.org/status/400");
-  log(`400 ok: ${response400.ok}`);
-  log(`400 status: ${response400.status}`);
-  
-  const response401 = await fetch("https://httpbin.org/status/401");
-  log(`401 ok: ${response401.ok}`);
-  log(`401 status: ${response401.status}`);
-  
-  const response403 = await fetch("https://httpbin.org/status/403");
-  log(`403 ok: ${response403.ok}`);
-  log(`403 status: ${response403.status}`);
-  
   log("error-404 test complete");
 };

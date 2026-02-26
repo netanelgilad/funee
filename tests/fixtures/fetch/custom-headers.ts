@@ -16,7 +16,7 @@ export default async () => {
       "X-Custom-Header": "test-value-123",
       "Authorization": "Bearer my-test-token",
       "Accept": "application/json",
-      "X-Request-Id": "req-12345"
+      "X-Trace-Id": "req-12345"
     }
   });
   
@@ -47,9 +47,9 @@ export default async () => {
     const acceptHeader = headers['Accept'] || headers['accept'];
     log(`Accept received: ${acceptHeader?.includes('application/json')}`);
     
-    // X-Request-Id
-    const requestIdHeader = headers['X-Request-Id'] || headers['x-request-id'];
-    log(`X-Request-Id received: ${requestIdHeader === 'req-12345'}`);
+    // X-Trace-Id (note: X-Request-Id is stripped by httpbin.org's infrastructure)
+    const traceIdHeader = headers['X-Trace-Id'] || headers['x-trace-id'];
+    log(`X-Trace-Id received: ${traceIdHeader === 'req-12345'}`);
   }
   
   log("custom-headers test complete");

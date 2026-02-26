@@ -483,6 +483,18 @@ export type {
   HttpGetJSONOptions,
   HttpPostJSONOptions,
   GetBodyOptions,
+  // Web-standard Fetch API types
+  Headers,
+  HeadersInit,
+  HeadersConstructor,
+  Response,
+  ResponseInit,
+  ResponseType,
+  ResponseConstructor,
+  RequestInit,
+  RequestRedirect,
+  BodyInit,
+  Blob,
 } from "./http/index.ts";
 
 export {
@@ -494,6 +506,14 @@ export {
   httpGetJSON,
   httpPostJSON,
   getBody,
+  // Web-standard Fetch API
+  createHeaders,
+  isHeaders,
+  createResponse,
+  createErrorResponse,
+  createRedirectResponse,
+  createJsonResponse,
+  fetch,
 } from "./http/index.ts";
 
 // ============================================================================
