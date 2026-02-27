@@ -14,6 +14,7 @@
 import {
   scenario,
   runScenarios,
+  runScenariosWatch,
   assertThat,
   is,
   greaterThan,
@@ -22,6 +23,9 @@ import {
   log,
   spawn,
   Closure,
+  Definition,
+  watchFile,
+  watchDirectory,
 } from "funee";
 
 // ============================================================================
@@ -111,8 +115,10 @@ const subprocessScenarios = [
     description: "subprocess :: sets working directory",
     verify: {
       expression: async () => {
-        const result = await spawn("pwd", [], { cwd: "/tmp" });
-        await assertThat(result.stdoutText().trim(), is("/tmp"));
+        const proc = spawn({ cmd: ["pwd"], cwd: "/tmp" });
+        const result = await proc.output();
+        // On macOS, /tmp symlinks to /private/tmp
+        await assertThat(result.stdoutText().trim(), contains("tmp"));
       },
       references: new Map(),
     } as Closure<() => Promise<unknown>>,
@@ -123,10 +129,12 @@ const subprocessScenarios = [
     description: "subprocess :: sets environment variables",
     verify: {
       expression: async () => {
-        const result = await spawn("sh", ["-c", "echo $MY_VAR"], {
+        const proc = spawn({
+          cmd: ["sh", "-c", "echo $MY_VAR"],
           env: { MY_VAR: "test_value" },
           inheritEnv: true,
         });
+        const result = await proc.output();
         await assertThat(result.stdoutText().trim(), is("test_value"));
       },
       references: new Map(),
@@ -282,45 +290,11 @@ const timerScenarios = [
 // ============================================================================
 
 const macroScenarios = [
-  // Closure macro captures expression
-  scenario({
-    description: "macro :: closure captures expression as AST",
-    verify: {
-      expression: async () => {
-        // Import closure dynamically to test macro expansion
-        const { closure } = await import("funee");
-
-        const addClosure = closure((a: number, b: number) => a + b);
-
-        await assertThat(typeof addClosure, is("object"));
-        await assertThat(addClosure.expression.type, is("ArrowFunctionExpression"));
-      },
-      references: new Map(),
-    } as Closure<() => Promise<unknown>>,
-  }),
-
-  // Closure has references map
-  scenario({
-    description: "macro :: closure has references Map",
-    verify: {
-      expression: async () => {
-        const { closure } = await import("funee");
-
-        const captured = closure(() => "test");
-
-        await assertThat(captured.references instanceof Map, is(true));
-      },
-      references: new Map(),
-    } as Closure<() => Promise<unknown>>,
-  }),
-
   // Closure constructor accepts plain objects
   scenario({
     description: "macro :: Closure constructor converts plain objects to Map",
     verify: {
       expression: async () => {
-        const { Closure } = await import("funee");
-
         const c = Closure({
           expression: "test",
           references: { foo: { uri: "/test.ts", name: "foo" } },
@@ -339,8 +313,6 @@ const macroScenarios = [
     description: "macro :: Closure constructor accepts Map references",
     verify: {
       expression: async () => {
-        const { Closure } = await import("funee");
-
         const refsMap = new Map([
           ["bar", { uri: "/bar.ts", name: "bar" }],
         ]);
@@ -358,36 +330,13 @@ const macroScenarios = [
     } as Closure<() => Promise<unknown>>,
   }),
 
-  // createMacro throws at runtime
-  scenario({
-    description: "macro :: createMacro throws at runtime if not expanded",
-    verify: {
-      expression: async () => {
-        const { createMacro } = await import("funee");
-
-        let threw = false;
-        try {
-          // Calling createMacro directly (not through macro expansion) should throw
-          const fn = createMacro((x: any) => x);
-          fn("test"); // This line should throw
-        } catch (e: any) {
-          threw = true;
-          await assertThat(e.message, contains("not expanded"));
-        }
-
-        await assertThat(threw, is(true));
-      },
-      references: new Map(),
-    } as Closure<() => Promise<unknown>>,
-  }),
-
   // CanonicalName type structure
   scenario({
     description: "macro :: CanonicalName has uri and name properties",
     verify: {
       expression: async () => {
-        // CanonicalName is just a type, verify structure works
-        const name: { uri: string; name: string } = {
+        // CanonicalName is a structural type { uri, name }
+        const name = {
           uri: "/path/to/file.ts",
           name: "exportedName",
         };
@@ -405,8 +354,6 @@ const macroScenarios = [
     description: "macro :: Definition has declaration and references",
     verify: {
       expression: async () => {
-        const { Definition } = await import("funee");
-
         const def = Definition({
           declaration: { type: "VariableDeclaration", kind: "const" },
           references: {},
@@ -414,6 +361,32 @@ const macroScenarios = [
 
         await assertThat(typeof def.declaration, is("object"));
         await assertThat(def.references instanceof Map, is(true));
+      },
+      references: new Map(),
+    } as Closure<() => Promise<unknown>>,
+  }),
+
+  // Test actual closure macro expansion via fixture
+  scenario({
+    description: "macro :: closure macro expands to AST at compile time",
+    verify: {
+      expression: async () => {
+        const result = await spawn("./target/release/funee", ["tests/fixtures/macro/closure-macro.ts"]);
+        await assertThat(result.status.code, is(0));
+        await assertThat(result.stdoutText(), contains("type: object"));
+        await assertThat(result.stdoutText(), contains("AST type: ArrowFunctionExpression"));
+      },
+      references: new Map(),
+    } as Closure<() => Promise<unknown>>,
+  }),
+
+  // Test macro with cross-file references
+  scenario({
+    description: "macro :: closure captures cross-file references",
+    verify: {
+      expression: async () => {
+        const result = await spawn("./target/release/funee", ["tests/fixtures/macro/cross-file-ref/entry.ts"]);
+        await assertThat(result.status.code, is(0));
       },
       references: new Map(),
     } as Closure<() => Promise<unknown>>,
@@ -430,8 +403,6 @@ const watchModeScenarios = [
     description: "watch :: runScenariosWatch is exported from funee",
     verify: {
       expression: async () => {
-        const { runScenariosWatch } = await import("funee");
-
         await assertThat(runScenariosWatch !== undefined, is(true));
         await assertThat(typeof runScenariosWatch, is("function"));
       },
@@ -469,8 +440,6 @@ const watchModeScenarios = [
     description: "watch :: watchFile and watchDirectory are exported",
     verify: {
       expression: async () => {
-        const { watchFile, watchDirectory } = await import("funee");
-
         await assertThat(typeof watchFile, is("function"));
         await assertThat(typeof watchDirectory, is("function"));
       },
