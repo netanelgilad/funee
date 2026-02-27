@@ -35,3 +35,11 @@ export { assertThat } from "./assertThat.ts";
 export { is } from "./is.ts";
 export { not } from "./not.ts";
 export { both } from "./both.ts";
+
+// Matchers
+export { contains } from "./contains.ts";
+export { matches } from "./matches.ts";
+export { greaterThan } from "./greaterThan.ts";
+export { lessThan } from "./lessThan.ts";
+export { greaterThanOrEqual } from "./greaterThanOrEqual.ts";
+export { lessThanOrEqual } from "./lessThanOrEqual.ts";

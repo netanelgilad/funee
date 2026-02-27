@@ -354,6 +354,13 @@ export {
   assert,
   strictEqual,
   deepEqual,
+  // Matchers
+  contains,
+  matches,
+  greaterThan,
+  lessThan,
+  greaterThanOrEqual,
+  lessThanOrEqual,
 } from "./assertions/index.ts";
 
 // ============================================================================
