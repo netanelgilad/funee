@@ -559,6 +559,7 @@ export type {
   FsResultOk,
   FsResultErr,
   FileStats,
+  TempDir,
 } from "./filesystem/index.ts";
 
 export {
@@ -580,6 +581,7 @@ export {
   lstatRaw,
   readdir,
   readdirRaw,
+  tempDir,
 } from "./filesystem/index.ts";
 
 // ============================================================================

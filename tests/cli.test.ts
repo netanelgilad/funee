@@ -1298,6 +1298,71 @@ describe('funee CLI', () => {
       expect(stdout).toContain('multiple watchers stopped: pass');
       expect(stdout).toContain('watcher test complete');
     });
+
+    // ==================== DISPOSABLE RESOURCES ====================
+
+    it('serve() returns server with Symbol.asyncDispose', async () => {
+      /**
+       * Tests that serve() returns a server object with [Symbol.asyncDispose]:
+       * 
+       * const server = serve({ port: 0 }, () => new Response("test"));
+       * await server[Symbol.asyncDispose]();  // calls shutdown()
+       * 
+       * - Server should have asyncDispose symbol
+       * - asyncDispose should call shutdown()
+       * - After disposal, server should not accept connections
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/server-dispose.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('has asyncDispose: pass');
+      expect(stdout).toContain('before dispose responds: pass');
+      expect(stdout).toContain('after dispose fails: pass');
+      expect(stdout).toContain('await using responds: pass');
+      expect(stdout).toContain('await using disposed: pass');
+      expect(stdout).toContain('server-dispose test complete');
+    });
+
+    it('tempDir creates disposable temporary directory', async () => {
+      /**
+       * Tests the tempDir disposable resource from "funee":
+       * 
+       * import { tempDir } from "funee"
+       * 
+       * await using tmp = tempDir();
+       * // tmp.path is created and accessible
+       * // Directory is deleted when disposed
+       * 
+       * - Creates a directory in system temp folder
+       * - Has asyncDispose symbol
+       * - Directory is deleted on disposal
+       * - Supports nested files and directories
+       */
+      const { stdout, stderr, exitCode } = await runFunee(['funee-lib/temp-dir.ts']);
+      
+      if (exitCode !== 0) {
+        console.error('stderr:', stderr);
+        console.error('stdout:', stdout);
+      }
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('creates directory: pass');
+      expect(stdout).toContain('has asyncDispose: pass');
+      expect(stdout).toContain('path in temp: pass');
+      expect(stdout).toContain('has funee prefix: pass');
+      expect(stdout).toContain('write/read works: pass');
+      expect(stdout).toContain('file exists before dispose: pass');
+      expect(stdout).toContain('deleted after dispose: pass');
+      expect(stdout).toContain('unique paths: pass');
+      expect(stdout).toContain('await using exists during: pass');
+      expect(stdout).toContain('await using cleaned after: pass');
+      expect(stdout).toContain('temp-dir test complete');
+    });
   });
 
   describe('HTTP imports', () => {

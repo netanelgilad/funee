@@ -66,3 +66,7 @@ export { writeFileBinary, writeFileBinaryRaw } from "./writeFileBinary.ts";
 export { isFile } from "./isFile.ts";
 export { lstat, lstatRaw } from "./lstat.ts";
 export { readdir, readdirRaw } from "./readdir.ts";
+
+// Temporary directory with async disposal
+export type { TempDir } from "./tempDir.ts";
+export { tempDir } from "./tempDir.ts";

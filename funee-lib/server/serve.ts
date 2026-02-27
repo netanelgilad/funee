@@ -47,6 +47,8 @@ export type Server = {
   readonly hostname: string;
   /** Gracefully shutdown the server */
   shutdown: () => Promise<void>;
+  /** Async disposable - calls shutdown() when disposed */
+  [Symbol.asyncDispose]: () => Promise<void>;
 };
 
 // Declare the global serve function (provided by runtime bootstrap)

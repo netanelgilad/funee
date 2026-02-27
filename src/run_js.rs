@@ -717,6 +717,28 @@ const SERVER_BOOTSTRAP: &str = r#"
         // Start accept loop (don't await - runs in background)
         acceptLoop().catch(() => {});
         
+        // Shutdown function
+        const shutdown = async () => {
+            isShuttingDown = true;
+            
+            // Wait for pending requests to complete
+            if (pendingRequests > 0) {
+                await new Promise(resolve => {
+                    let timeoutId = null;
+                    shutdownResolve = () => {
+                        if (timeoutId !== null) {
+                            clearTimeout(timeoutId);
+                        }
+                        resolve();
+                    };
+                    // Also set a timeout just in case
+                    timeoutId = setTimeout(shutdownResolve, 30000);
+                });
+            }
+            
+            await Deno.core.ops.op_serverStop(serverId);
+        };
+        
         // Return server handle
         return {
             get port() {
@@ -725,26 +747,8 @@ const SERVER_BOOTSTRAP: &str = r#"
             get hostname() {
                 return actualHostname;
             },
-            shutdown: async () => {
-                isShuttingDown = true;
-                
-                // Wait for pending requests to complete
-                if (pendingRequests > 0) {
-                    await new Promise(resolve => {
-                        let timeoutId = null;
-                        shutdownResolve = () => {
-                            if (timeoutId !== null) {
-                                clearTimeout(timeoutId);
-                            }
-                            resolve();
-                        };
-                        // Also set a timeout just in case
-                        timeoutId = setTimeout(shutdownResolve, 30000);
-                    });
-                }
-                
-                await Deno.core.ops.op_serverStop(serverId);
-            }
+            shutdown,
+            [Symbol.asyncDispose]: shutdown
         };
     };
 })();
