@@ -2292,6 +2292,64 @@ describe('funee CLI', () => {
       expect(stdout).toContain('sync assertion in async context passed');
       expect(stdout).toContain('async-assertion test complete');
     });
+
+    it('contains() checks string and array containment', async () => {
+      const { stdout, exitCode } = await runFunee(['funee-lib/assertions/contains-test.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain("contains(world) passed for 'hello world'");
+      expect(stdout).toContain("contains(2) passed for [1, 2, 3]");
+      expect(stdout).toContain("contains({a: 1}) passed for [{a: 1}, {b: 2}]");
+      expect(stdout).toContain('contains-test complete');
+    });
+
+    it('contains() throws when item not found', async () => {
+      const { exitCode, stderr } = await runFunee(['funee-lib/assertions/contains-fails.ts']);
+      
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toMatch(/AssertionError|Expected/i);
+    });
+
+    it('matches() checks regex patterns', async () => {
+      const { stdout, exitCode } = await runFunee(['funee-lib/assertions/matches-test.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain("matches(/\\d+/) passed for 'hello123'");
+      expect(stdout).toContain("matches(/^[a-z]+$/) passed for 'abc'");
+      expect(stdout).toContain('matches-test complete');
+    });
+
+    it('matches() throws when pattern does not match', async () => {
+      const { exitCode, stderr } = await runFunee(['funee-lib/assertions/matches-fails.ts']);
+      
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toMatch(/AssertionError|Expected/i);
+    });
+
+    it('greaterThan(), lessThan(), and boundary matchers work', async () => {
+      const { stdout, exitCode } = await runFunee(['funee-lib/assertions/numeric-comparisons-test.ts']);
+      
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('greaterThan(3) passed for 5');
+      expect(stdout).toContain('lessThan(10) passed for 2');
+      expect(stdout).toContain('greaterThanOrEqual(5) passed for 5');
+      expect(stdout).toContain('lessThanOrEqual(5) passed for 5');
+      expect(stdout).toContain('numeric-comparisons-test complete');
+    });
+
+    it('greaterThan() throws for smaller values', async () => {
+      const { exitCode, stderr } = await runFunee(['funee-lib/assertions/greaterThan-fails.ts']);
+      
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toMatch(/AssertionError|Expected/i);
+    });
+
+    it('lessThan() throws for larger values', async () => {
+      const { exitCode, stderr } = await runFunee(['funee-lib/assertions/lessThan-fails.ts']);
+      
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toMatch(/AssertionError|Expected/i);
+    });
   });
 
   describe('error handling', () => {
